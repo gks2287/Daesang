@@ -36,6 +36,7 @@ const INITIAL: Company[] = [
 interface CompanyStore {
   companies: Company[];
   addCompany: (data: Omit<Company, 'id' | 'initials' | 'color'>) => void;
+  updateCompany: (id: number, data: Partial<Omit<Company, 'id' | 'initials' | 'color'>>) => void;
 }
 
 function getInitials(name: string) {
@@ -48,6 +49,13 @@ function getInitials(name: string) {
 
 export const useCompanyStore = create<CompanyStore>((set, get) => ({
   companies: INITIAL,
+  updateCompany: (id, data) => {
+    set({
+      companies: get().companies.map(c =>
+        c.id === id ? { ...c, ...data, initials: data.name ? getInitials(data.name) : c.initials } : c
+      ),
+    });
+  },
   addCompany: (data) => {
     const companies = get().companies;
     const id = companies.length > 0 ? Math.max(...companies.map(c => c.id)) + 1 : 1;
