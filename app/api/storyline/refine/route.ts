@@ -2,23 +2,36 @@ import { NextRequest, NextResponse } from 'next/server';
 import { type StorylineStep } from '@/lib/storyline';
 
 function mockRefine(storyline: StorylineStep[], prompt: string): StorylineStep[] {
+  let result = storyline.map(s => ({ ...s }));
+
+  // "X를/을 Y로/으로 바꿔/변경/수정" 패턴 → title 또는 subtitle 교체
+  const replaceMatch = prompt.match(/(.+?)[을를]\s*(.+?)(?:으로|로)\s*(?:바꿔|변경|수정)/);
+  if (replaceMatch) {
+    const from = replaceMatch[1].trim();
+    const to = replaceMatch[2].trim();
+    result = result.map(s => ({
+      ...s,
+      title: s.title === from ? to : s.title,
+      subtitle: s.subtitle === from ? to : s.subtitle,
+    }));
+  }
+
+  // "N단계로 줄이기/늘리기" 패턴 → 단계 수 조정
   const countMatch = prompt.match(/(\d+)\s*단계/);
   if (countMatch) {
     const target = parseInt(countMatch[1]);
     if (target >= 2 && target <= 10) {
-      if (target < storyline.length) {
-        return storyline.slice(0, target).map((s, i) => ({ ...s, step: i + 1 }));
-      }
-      if (target > storyline.length) {
-        const result = [...storyline];
+      if (target < result.length) {
+        result = result.slice(0, target);
+      } else {
         while (result.length < target) {
           result.push({ step: result.length + 1, title: `${result.length + 1}단계`, subtitle: '', description: '' });
         }
-        return result;
       }
     }
   }
-  return storyline;
+
+  return result.map((s, i) => ({ ...s, step: i + 1 }));
 }
 
 export async function POST(req: NextRequest) {

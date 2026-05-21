@@ -723,7 +723,7 @@ function ConfigureContent() {
                   </svg>
                   <p className="text-xs font-bold text-[#2E7DB5]">AI 보조 편집</p>
                 </div>
-                <p className="text-[11px] text-gray-500">어떻게 바꾸고 싶은지 자연어로 입력하세요.<br />예: &quot;4단계로 줄이고 마지막을 통합 단계로 바꿔줘&quot;</p>
+                <p className="text-[11px] text-gray-500">뉴스레터 스토리라인을 어떻게 바꾸고 싶은지 입력하세요.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
