@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNewsletterStore } from '@/store/newsletterStore';
 import { useCompanyStore } from '@/store/companyStore';
-import { DEFAULT_STORYLINE, STEP_COLORS } from '@/lib/storyline';
+import { DEFAULT_STORYLINE, STEP_COLORS, type StorylineStep } from '@/lib/storyline';
 import { LEADERSHIP_COLOR } from '@/lib/constants/leadershipColors';
 
 type ContentFormat = '글' | '영상' | '인포그래픽' | '카드뉴스';
@@ -109,6 +109,65 @@ function ConfigureContent() {
   // 5단계: 만족도 조사 + 제목
   const [surveyType, setSurveyType] = useState<SurveyType>('상시 조사');
   const [newsletterTitle, setNewsletterTitle] = useState('');
+
+  // 스토리라인 편집
+  const [customStoryline, setCustomStoryline] = useState<StorylineStep[]>(DEFAULT_STORYLINE);
+  const [isEditingStoryline, setIsEditingStoryline] = useState(false);
+  const [draftStoryline, setDraftStoryline] = useState<StorylineStep[]>(DEFAULT_STORYLINE);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiRefining, setIsAiRefining] = useState(false);
+  const [aiRefineError, setAiRefineError] = useState<string | null>(null);
+
+  function openEditModal() {
+    setDraftStoryline(customStoryline.map(s => ({ ...s })));
+    setAiPrompt('');
+    setAiRefineError(null);
+    setIsEditingStoryline(true);
+  }
+
+  function saveStoryline() {
+    setCustomStoryline(draftStoryline.map((s, i) => ({ ...s, step: i + 1 })));
+    setIsEditingStoryline(false);
+  }
+
+  function updateDraftStep(idx: number, field: keyof Omit<StorylineStep, 'step'>, value: string) {
+    setDraftStoryline(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+  }
+
+  function addDraftStep() {
+    setDraftStoryline(prev => [
+      ...prev,
+      { step: prev.length + 1, title: '새 단계', subtitle: '', description: '' },
+    ]);
+  }
+
+  function removeDraftStep(idx: number) {
+    if (draftStoryline.length <= 2) return;
+    setDraftStoryline(prev =>
+      prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, step: i + 1 }))
+    );
+  }
+
+  async function refineWithAI() {
+    if (!aiPrompt.trim()) return;
+    setIsAiRefining(true);
+    setAiRefineError(null);
+    try {
+      const res = await fetch('/api/storyline/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentStoryline: draftStoryline, prompt: aiPrompt }),
+      });
+      if (!res.ok) throw new Error('API 오류');
+      const data = await res.json() as { storyline: StorylineStep[] };
+      setDraftStoryline(data.storyline);
+      setAiPrompt('');
+    } catch {
+      setAiRefineError('AI 수정에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsAiRefining(false);
+    }
+  }
 
   async function fetchTopics() {
     setIsLoadingTopics(true);
@@ -480,7 +539,7 @@ function ConfigureContent() {
 
             {/* 가로 플로우 (데스크탑) / 세로 (모바일) */}
             <div className="flex flex-col lg:flex-row items-stretch gap-0 lg:gap-0 mb-8">
-              {DEFAULT_STORYLINE.map((s, i) => {
+              {customStoryline.map((s, i) => {
                 const color = STEP_COLORS[i];
                 return (
                   <div key={s.step} className="flex flex-col lg:flex-row items-stretch flex-1 min-w-0">
@@ -518,23 +577,34 @@ function ConfigureContent() {
               })}
             </div>
 
-            {/* 안내 + 이 구조로 진행 버튼 */}
+            {/* 안내 + 버튼들 */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="flex items-center gap-2 bg-[#55A4DA]/5 border border-[#55A4DA]/20 rounded-xl px-4 py-3 flex-1">
                 <svg className="w-4 h-4 text-[#55A4DA] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-xs text-[#2E7DB5]">이 스토리라인은 모든 뉴스레터에 공통으로 적용됩니다. 다음 단계에서 각 회차별 콘텐츠를 구성합니다.</p>
+                <p className="text-xs text-[#2E7DB5]">이 스토리라인은 {targetCompanies[0]?.name ?? '해당 고객사'}의 모든 뉴스레터에 공통으로 적용됩니다. 다음 단계에서 각 회차별 콘텐츠를 구성합니다.</p>
               </div>
-              <button
-                onClick={goNext}
-                className="flex items-center gap-2 px-6 py-3 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm whitespace-nowrap flex-shrink-0"
-              >
-                이 구조로 진행
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={openEditModal}
+                  className="flex items-center gap-1.5 px-4 py-3 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  편집
+                </button>
+                <button
+                  onClick={goNext}
+                  className="flex items-center gap-2 px-6 py-3 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm whitespace-nowrap"
+                >
+                  이 구조로 진행
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -620,6 +690,137 @@ function ConfigureContent() {
             >
               생성 완료
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 스토리라인 편집 모달 ── */}
+      {isEditingStoryline && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
+
+            {/* 모달 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-gray-800">스토리라인 편집</h2>
+                <p className="text-xs text-gray-400 mt-0.5">단계 추가·삭제·순서 변경 및 내용 수정이 가능합니다.</p>
+              </div>
+              <button onClick={() => setIsEditingStoryline(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* 모달 바디 */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+              {/* AI 보조 섹션 */}
+              <div className="bg-[#55A4DA]/5 border border-[#55A4DA]/20 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <p className="text-xs font-bold text-[#2E7DB5]">AI 보조 편집</p>
+                </div>
+                <p className="text-[11px] text-gray-500">어떻게 바꾸고 싶은지 자연어로 입력하세요.<br />예: &quot;4단계로 줄이고 마지막을 통합 단계로 바꿔줘&quot;</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && !isAiRefining && refineWithAI()}
+                    placeholder="수정 요청을 입력하세요..."
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white"
+                  />
+                  <button
+                    onClick={refineWithAI}
+                    disabled={!aiPrompt.trim() || isAiRefining}
+                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                      !aiPrompt.trim() || isAiRefining
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
+                    }`}
+                  >
+                    {isAiRefining ? '수정 중...' : 'AI 수정'}
+                  </button>
+                </div>
+                {aiRefineError && (
+                  <p className="text-[11px] text-red-500">{aiRefineError}</p>
+                )}
+              </div>
+
+              {/* 단계 목록 */}
+              <div className="space-y-2.5">
+                {draftStoryline.map((s, idx) => {
+                  const color = STEP_COLORS[idx % STEP_COLORS.length];
+                  return (
+                    <div key={idx} className={`rounded-xl border-2 ${color.border} ${color.cardBg} p-4`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`w-7 h-7 rounded-full ${color.badge} flex items-center justify-center flex-shrink-0`}>
+                          <span className="text-white text-xs font-bold">{idx + 1}</span>
+                        </div>
+                        <button
+                          onClick={() => removeDraftStep(idx)}
+                          disabled={draftStoryline.length <= 2}
+                          className="text-gray-300 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          title="단계 삭제"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        <input
+                          value={s.title}
+                          onChange={e => updateDraftStep(idx, 'title', e.target.value)}
+                          placeholder="단계명 (예: 수용)"
+                          className={`w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white focus:outline-none focus:border-current focus:ring-1 focus:ring-current/20 transition ${color.titleColor}`}
+                        />
+                        <input
+                          value={s.subtitle}
+                          onChange={e => updateDraftStep(idx, 'subtitle', e.target.value)}
+                          placeholder="부제 (예: 성찰과 인정)"
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-600 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/20 transition"
+                        />
+                        <textarea
+                          value={s.description}
+                          onChange={e => updateDraftStep(idx, 'description', e.target.value)}
+                          placeholder="단계 설명을 입력하세요"
+                          rows={2}
+                          className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-600 resize-none focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/20 transition"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 단계 추가 버튼 */}
+              <button
+                onClick={addDraftStep}
+                className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors font-medium"
+              >
+                + 단계 추가
+              </button>
+            </div>
+
+            {/* 모달 푸터 */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2 flex-shrink-0">
+              <button
+                onClick={() => setIsEditingStoryline(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={saveStoryline}
+                className="px-5 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors"
+              >
+                저장
+              </button>
+            </div>
           </div>
         </div>
       )}
