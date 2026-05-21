@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type LeadershipType } from '@/store/participantStore';
+import { useNewNewsletterDraftStore } from '@/store/newNewsletterDraftStore';
 
 type NewsletterKind = '일반형' | '맞춤형';
 type TargetCategory = 'leadership' | 'department' | 'ability';
@@ -25,15 +26,22 @@ export default function NewNewsletterPage() {
   const router = useRouter();
   const companies = useCompanyStore(s => s.companies);
   const rawParticipants = useParticipantStore(s => s.participants);
+  const draft = useNewNewsletterDraftStore();
 
-  const [kind, setKind] = useState<NewsletterKind | null>(null);
-  const [companyIds, setCompanyIds] = useState<number[]>([]);
+  const [kind, setKind] = useState<NewsletterKind | null>(draft.kind);
+  const [companyIds, setCompanyIds] = useState<number[]>(draft.companyIds);
   const [companySearch, setCompanySearch] = useState('');
-  const [targetCategory, setTargetCategory] = useState<TargetCategory | null>(null);
-  const [selectedTypes, setSelectedTypes] = useState<LeadershipType[]>([]);
-  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
-  const [selectedAbilities, setSelectedAbilities] = useState<string[]>([]);
-  const [selectedLeaders, setSelectedLeaders] = useState<number[]>([]);
+  const [targetCategory, setTargetCategory] = useState<TargetCategory | null>(draft.targetCategory);
+  const [selectedTypes, setSelectedTypes] = useState<LeadershipType[]>(draft.selectedTypes as LeadershipType[]);
+  const [selectedDepts, setSelectedDepts] = useState<string[]>(draft.selectedDepts);
+  const [selectedAbilities, setSelectedAbilities] = useState<string[]>(draft.selectedAbilities);
+  const [selectedLeaders, setSelectedLeaders] = useState<number[]>(draft.selectedLeaders);
+
+  // draft store 동기화
+  useEffect(() => {
+    draft.setDraft({ kind, companyIds, targetCategory, selectedTypes, selectedDepts, selectedAbilities, selectedLeaders });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, companyIds, targetCategory, selectedTypes, selectedDepts, selectedAbilities, selectedLeaders]);
 
   function handleSelectKind(k: NewsletterKind) {
     setKind(k);

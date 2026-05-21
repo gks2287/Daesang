@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useNewsletterStore } from '@/store/newsletterStore';
 import { useCompanyStore } from '@/store/companyStore';
 import { DEFAULT_STORYLINE, STEP_COLORS, type StorylineStep } from '@/lib/storyline';
 import { LEADERSHIP_COLOR } from '@/lib/constants/leadershipColors';
+import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestion } from '@/store/newNewsletterDraftStore';
 
 type ContentFormat = '글' | '영상' | '인포그래픽' | '카드뉴스';
 type InteractionType = '퀴즈' | '시뮬레이션' | '성찰질문' | '체크리스트';
@@ -25,11 +26,7 @@ interface Step {
   specificContent: string;
 }
 
-interface TopicSuggestion {
-  title: string;
-  description: string;
-  reason: string;
-}
+type TopicSuggestion = DraftTopicSuggestion;
 
 const DELIVERY_SCHEDULES: DeliverySchedule[] = ['주 1회', '격주', '월 1회'];
 const SURVEY_TYPES: SurveyType[] = ['상시 조사', '정기 조사', '안보냄', '둘다 보냄'];
@@ -89,14 +86,16 @@ function ConfigureContent() {
   const targetCompanies = companies.filter(c => companyIdList.includes(c.id));
   const leadershipTypes = typesParam ? typesParam.split(',').filter(Boolean) : [];
 
-  // 위저드 상태
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
+  const configDraft = useNewNewsletterDraftStore();
+
+  // 위저드 상태 (draft store에서 초기화)
+  const [wizardStep, setWizardStep] = useState<WizardStep>(configDraft.wizardStep);
 
   // 2단계: 주제 선정
-  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState<TopicSuggestion | null>(null);
-  const [isCustom, setIsCustom] = useState(false);
-  const [customTopic, setCustomTopic] = useState('');
+  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>(configDraft.suggestions);
+  const [selectedTopic, setSelectedTopic] = useState<TopicSuggestion | null>(configDraft.selectedTopic);
+  const [isCustom, setIsCustom] = useState(configDraft.isCustom);
+  const [customTopic, setCustomTopic] = useState(configDraft.customTopic);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicError, setTopicError] = useState<string | null>(null);
 
@@ -104,14 +103,14 @@ function ConfigureContent() {
   const [steps] = useState<Step[]>([makeStep(0)]);
 
   // 4단계: 발송 주기
-  const [deliverySchedule, setDeliverySchedule] = useState<DeliverySchedule>('주 1회');
+  const [deliverySchedule, setDeliverySchedule] = useState<DeliverySchedule>(configDraft.deliverySchedule);
 
   // 5단계: 만족도 조사 + 제목
-  const [surveyType, setSurveyType] = useState<SurveyType>('상시 조사');
-  const [newsletterTitle, setNewsletterTitle] = useState('');
+  const [surveyType, setSurveyType] = useState<SurveyType>(configDraft.surveyType);
+  const [newsletterTitle, setNewsletterTitle] = useState(configDraft.newsletterTitle);
 
   // 스토리라인 편집
-  const [customStoryline, setCustomStoryline] = useState<StorylineStep[]>(DEFAULT_STORYLINE);
+  const [customStoryline, setCustomStoryline] = useState<StorylineStep[]>(configDraft.customStoryline);
   const [isEditingStoryline, setIsEditingStoryline] = useState(false);
   const [draftStoryline, setDraftStoryline] = useState<StorylineStep[]>(DEFAULT_STORYLINE);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -169,6 +168,12 @@ function ConfigureContent() {
     }
   }
 
+  // draft store 동기화
+  useEffect(() => {
+    configDraft.setDraft({ wizardStep, customStoryline, suggestions, selectedTopic, isCustom, customTopic, deliverySchedule, surveyType, newsletterTitle });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardStep, customStoryline, suggestions, selectedTopic, isCustom, customTopic, deliverySchedule, surveyType, newsletterTitle]);
+
   async function fetchTopics() {
     setIsLoadingTopics(true);
     setTopicError(null);
@@ -211,6 +216,7 @@ function ConfigureContent() {
       stepCount: steps.length,
     });
 
+    configDraft.resetDraft();
     router.push(`/admin/newsletters?tab=${encodeURIComponent(status)}`);
   }
 
@@ -227,7 +233,11 @@ function ConfigureContent() {
   }
 
   function goPrev() {
-    if (wizardStep > 1) setWizardStep(prev => (prev - 1) as WizardStep);
+    if (wizardStep > 1) {
+      setWizardStep(prev => (prev - 1) as WizardStep);
+    } else {
+      router.push('/admin/newsletters/new');
+    }
   }
 
   return (
@@ -236,13 +246,13 @@ function ConfigureContent() {
       {/* ── 상단 토퍼 ── */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
-          <Link href="/admin/newsletters" className="hover:text-gray-600 transition-colors">
+          <Link href="/admin/newsletters" className="hover:text-gray-700 hover:underline transition-colors">
             뉴스레터 제작
           </Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <Link href="/admin/newsletters/new" className="hover:text-gray-600 transition-colors">
+          <Link href="/admin/newsletters/new" className="hover:text-gray-700 hover:underline transition-colors">
             새로 만들기
           </Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -829,12 +839,7 @@ function ConfigureContent() {
       <div className="bg-white border-t border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
         <button
           onClick={goPrev}
-          disabled={wizardStep === 1}
-          className={`flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-lg border transition-colors ${
-            wizardStep === 1
-              ? 'border-gray-100 text-gray-300 cursor-not-allowed'
-              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}
+          className="flex items-center gap-1.5 text-sm font-medium px-4 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
