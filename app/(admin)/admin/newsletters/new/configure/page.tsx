@@ -23,6 +23,11 @@ interface Step {
   specificContent: string;
 }
 
+interface TopicSuggestion {
+  title: string;
+  description: string;
+}
+
 const DELIVERY_SCHEDULES: DeliverySchedule[] = ['주 1회', '격주', '월 1회'];
 const SURVEY_TYPES: SurveyType[] = ['상시 조사', '정기 조사', '안보냄', '둘다 보냄'];
 
@@ -33,6 +38,15 @@ const WIZARD_STEPS: Array<{ n: WizardStep; label: string }> = [
   { n: 4, label: '발송 주기' },
   { n: 5, label: '만족도 조사' },
 ];
+
+const leadershipColor: Record<string, string> = {
+  '독재형':    'bg-red-100 text-red-600',
+  '방관형':    'bg-orange-100 text-orange-600',
+  '성과압박형': 'bg-purple-100 text-purple-600',
+  '불통형':    'bg-pink-100 text-pink-600',
+  '불명확형':  'bg-indigo-100 text-indigo-600',
+  '감정기복형': 'bg-amber-100 text-amber-600',
+};
 
 function makeStep(n: number): Step {
   return {
@@ -80,26 +94,62 @@ function ConfigureContent() {
   const targetCompanies = companies.filter(c => companyIdList.includes(c.id));
   const leadershipTypes = typesParam ? typesParam.split(',').filter(Boolean) : [];
 
+  // 위저드 상태
   const [wizardStep, setWizardStep] = useState<WizardStep>(1);
-  // steps 상태는 2~3단계 구현 시 setSteps, activeId 추가 예정
+
+  // 1단계: 주제 선정
+  const [suggestions, setSuggestions] = useState<TopicSuggestion[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState<TopicSuggestion | null>(null);
+  const [isCustom, setIsCustom] = useState(false);
+  const [customTopic, setCustomTopic] = useState('');
+  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
+  const [topicError, setTopicError] = useState<string | null>(null);
+
+  // 2~3단계: 콘텐츠 구성 (추후 구현)
   const [steps] = useState<Step[]>([makeStep(0)]);
+
+  // 4단계: 발송 주기
   const [deliverySchedule, setDeliverySchedule] = useState<DeliverySchedule>('주 1회');
+
+  // 5단계: 만족도 조사 + 제목
   const [surveyType, setSurveyType] = useState<SurveyType>('상시 조사');
   const [newsletterTitle, setNewsletterTitle] = useState('');
+
+  async function fetchTopics() {
+    setIsLoadingTopics(true);
+    setTopicError(null);
+    setSuggestions([]);
+    setSelectedTopic(null);
+    try {
+      const res = await fetch('/api/topics/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadershipTypes,
+          companyName: targetCompanies[0]?.name ?? '',
+          kind,
+        }),
+      });
+      if (!res.ok) throw new Error('API 오류');
+      const data = await res.json() as { topics: TopicSuggestion[] };
+      setSuggestions(data.topics ?? []);
+    } catch {
+      setTopicError('주제 추천을 불러오지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsLoadingTopics(false);
+    }
+  }
 
   function handleSave(status: '제작 중' | '제작완료') {
     const company = targetCompanies[0];
     const leadershipType =
-      leadershipTypes.length > 0
-        ? leadershipTypes[0]
-        : deptsParam
-        ? '부서별'
-        : '미지정';
+      leadershipTypes.length > 0 ? leadershipTypes[0] : deptsParam ? '부서별' : '미지정';
 
+    const topicTitle = isCustom ? customTopic.trim() : selectedTopic?.title ?? '';
     const autoTitle = `${company?.name ?? '미지정'} ${leadershipType} 리더십 코칭`.trim();
 
     addNewsletter({
-      title: newsletterTitle.trim() || autoTitle,
+      title: newsletterTitle.trim() || topicTitle || autoTitle,
       companyId: company?.id ?? 0,
       companyName: company?.name ?? '미지정',
       leadershipType,
@@ -110,8 +160,16 @@ function ConfigureContent() {
     router.push(`/admin/newsletters?tab=${encodeURIComponent(status)}`);
   }
 
+  function canGoNext(): boolean {
+    if (wizardStep === 1) {
+      if (isCustom) return customTopic.trim().length > 0;
+      return selectedTopic !== null;
+    }
+    return true;
+  }
+
   function goNext() {
-    if (wizardStep < 5) setWizardStep(prev => (prev + 1) as WizardStep);
+    if (wizardStep < 5 && canGoNext()) setWizardStep(prev => (prev + 1) as WizardStep);
   }
 
   function goPrev() {
@@ -228,8 +286,187 @@ function ConfigureContent() {
         </div>
       </div>
 
-      {/* ── 메인 콘텐츠 ── */}
-      {wizardStep === 1 && <PlaceholderStep label="주제 선정" />}
+      {/* ── 1단계: 주제 선정 ── */}
+      {wizardStep === 1 && (
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
+
+            {/* 현재 설정 요약 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">현재 설정</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">기업</span>
+                  <div className="flex gap-1">
+                    {targetCompanies.length > 0
+                      ? targetCompanies.map(c => (
+                          <span key={c.id} className="text-xs font-semibold px-2.5 py-1 bg-[#55A4DA]/10 text-[#55A4DA] rounded-full">
+                            {c.name}
+                          </span>
+                        ))
+                      : <span className="text-xs text-gray-400">—</span>}
+                  </div>
+                </div>
+                {leadershipTypes.length > 0 && (
+                  <>
+                    <div className="w-px h-4 bg-gray-200" />
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">리더십 유형</span>
+                      <div className="flex flex-wrap gap-1">
+                        {leadershipTypes.map(t => (
+                          <span key={t} className={`text-xs font-semibold px-2.5 py-1 rounded-full ${leadershipColor[t] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div className="w-px h-4 bg-gray-200" />
+                <span className="text-xs text-gray-500">
+                  {kind} · <span className="font-semibold text-gray-700">{leadersCount}명</span>
+                </span>
+              </div>
+            </div>
+
+            {/* AI 추천 섹션 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800">AI 주제 추천</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">설정 기반으로 뉴스레터 주제 3개를 추천합니다.</p>
+                </div>
+                <button
+                  onClick={fetchTopics}
+                  disabled={isLoadingTopics}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isLoadingTopics
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
+                  }`}
+                >
+                  {isLoadingTopics ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      {suggestions.length > 0 ? '다시 추천받기' : 'AI 주제 추천받기'}
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* 로딩 */}
+              {isLoadingTopics && (
+                <div className="flex items-center justify-center py-10 gap-3 text-gray-400">
+                  <svg className="w-5 h-5 animate-spin text-[#55A4DA]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span className="text-sm">AI가 주제를 생성하고 있습니다...</span>
+                </div>
+              )}
+
+              {/* 에러 */}
+              {topicError && !isLoadingTopics && (
+                <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                  <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-xs text-red-600 flex-1">{topicError}</p>
+                  <button onClick={fetchTopics} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">
+                    다시 시도
+                  </button>
+                </div>
+              )}
+
+              {/* 추천 카드 목록 */}
+              {!isLoadingTopics && suggestions.length > 0 && (
+                <div className="space-y-2.5">
+                  {suggestions.map((topic, idx) => {
+                    const isSelected = !isCustom && selectedTopic?.title === topic.title;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => { setSelectedTopic(topic); setIsCustom(false); }}
+                        className={`w-full text-left flex items-start gap-3.5 px-4 py-4 rounded-xl border-2 transition-all ${
+                          isSelected
+                            ? 'border-[#55A4DA] bg-[#55A4DA]/5'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
+                          isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
+                        }`}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>
+                            {topic.title}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1 leading-relaxed">{topic.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 초기 안내 */}
+              {!isLoadingTopics && suggestions.length === 0 && !topicError && (
+                <div className="flex items-center justify-center py-8 text-center">
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-[#55A4DA]/10 flex items-center justify-center mx-auto mb-2.5">
+                      <svg className="w-5 h-5 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <p className="text-xs text-gray-500 font-medium">버튼을 눌러 AI 주제 추천을 받아보세요.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 직접 입력 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+              <button
+                onClick={() => { setIsCustom(v => !v); setSelectedTopic(null); }}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    isCustom ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
+                  }`}>
+                    {isCustom && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700">직접 입력</span>
+                </div>
+                <span className="text-xs text-gray-400">AI 추천 대신 직접 주제를 입력합니다</span>
+              </button>
+              {isCustom && (
+                <input
+                  type="text"
+                  value={customTopic}
+                  onChange={e => setCustomTopic(e.target.value)}
+                  placeholder="뉴스레터 주제를 직접 입력하세요"
+                  autoFocus
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition"
+                />
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {wizardStep === 2 && <PlaceholderStep label="스토리라인 확인" />}
       {wizardStep === 3 && <PlaceholderStep label="콘텐츠 구성" />}
 
@@ -265,8 +502,6 @@ function ConfigureContent() {
       {wizardStep === 5 && (
         <div className="flex-1 flex items-center justify-center bg-[#F8FAFC] overflow-y-auto py-12">
           <div className="w-full max-w-md px-6 space-y-8">
-
-            {/* 뉴스레터 제목 */}
             <div>
               <h2 className="text-base font-bold text-gray-800 mb-1.5">뉴스레터 제목</h2>
               <p className="text-xs text-gray-400 mb-4">저장 시 사용할 뉴스레터 제목을 입력하세요.</p>
@@ -274,12 +509,15 @@ function ConfigureContent() {
                 type="text"
                 value={newsletterTitle}
                 onChange={e => setNewsletterTitle(e.target.value)}
-                placeholder={`예: ${targetCompanies[0]?.name ?? '고객사'} ${leadershipTypes[0] ?? ''} 리더십 코칭`.trim()}
+                placeholder={
+                  isCustom && customTopic
+                    ? customTopic
+                    : selectedTopic?.title
+                    ?? `${targetCompanies[0]?.name ?? '고객사'} ${leadershipTypes[0] ?? ''} 리더십 코칭`.trim()
+                }
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white"
               />
             </div>
-
-            {/* 만족도 조사 */}
             <div>
               <h2 className="text-base font-bold text-gray-800 mb-1.5">만족도 조사 설정</h2>
               <p className="text-xs text-gray-400 mb-4">만족도 조사를 어떻게 발송할지 선택하세요.</p>
@@ -304,8 +542,6 @@ function ConfigureContent() {
                 ))}
               </div>
             </div>
-
-            {/* 생성 완료 버튼 */}
             <button
               onClick={() => handleSave('제작완료')}
               className="w-full py-3.5 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
@@ -336,7 +572,12 @@ function ConfigureContent() {
         {wizardStep < 5 && (
           <button
             onClick={goNext}
-            className="flex items-center gap-1.5 text-sm font-semibold px-5 py-1.5 rounded-lg bg-[#55A4DA] hover:bg-[#3A8BC4] text-white transition-colors"
+            disabled={!canGoNext()}
+            className={`flex items-center gap-1.5 text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors ${
+              canGoNext()
+                ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
           >
             다음
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
