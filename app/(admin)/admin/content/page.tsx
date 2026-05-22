@@ -70,18 +70,38 @@ function itemToForm(item: ContentPoolItem): FormData {
 function ContentFormModal({
   mode,
   initialData,
+  sourceType,
   onSave,
   onClose,
 }: {
   mode: 'create' | 'edit';
   initialData?: ContentPoolItem;
+  sourceType?: ContentSource;
   onSave: (data: Omit<ContentPoolItem, 'id' | 'createdAt'>) => Promise<void>;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<FormData>(() =>
-    initialData ? itemToForm(initialData) : { ...EMPTY_FORM },
-  );
+  const [form, setForm] = useState<FormData>(() => {
+    if (initialData) return itemToForm(initialData);
+    return { ...EMPTY_FORM, type: sourceType ?? '자사' };
+  });
   const [saving, setSaving] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [sourceUrl, setSourceUrl] = useState('');
+
+  // TODO: API 키 발급 후 여기에 Claude API 파싱 로직 연결
+  // 파일 → base64 변환 후 Claude API에 전달
+  // 응답으로 받은 JSON으로 아래 폼 필드 자동 채우기
+  function handleFileParse(file: File) {
+    setSelectedFile(file);
+  }
+
+  // TODO: API 키 발급 후 여기에 Claude API 파싱 로직 연결
+  // URL 전달 → Claude API가 내용 요약/파싱
+  // 응답으로 받은 JSON으로 아래 폼 필드 자동 채우기
+  function handleUrlParse(url: string) {
+    setSourceUrl(url);
+    patch('author', url);
+  }
 
   const isValid =
     form.title.trim().length > 0 &&
@@ -155,6 +175,75 @@ function ContentFormModal({
 
         {/* 바디 (스크롤) */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {/* 자사: 파일 업로드 영역 */}
+          {form.type === '자사' && (
+            <div className="space-y-2">
+              <label className={labelCls}>파일 업로드 <span className="text-gray-300 font-normal">(선택 · docx / pdf / txt)</span></label>
+              <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-200 rounded-xl py-5 px-4 cursor-pointer hover:border-[#55A4DA]/50 hover:bg-[#55A4DA]/5 transition-colors group">
+                <input
+                  type="file"
+                  accept=".docx,.pdf,.txt"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileParse(file);
+                  }}
+                />
+                {selectedFile ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <svg className="w-5 h-5 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="font-medium truncate max-w-xs">{selectedFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={e => { e.preventDefault(); setSelectedFile(null); }}
+                      className="ml-1 text-gray-400 hover:text-red-400 transition-colors text-base leading-none"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 text-center">
+                    <svg className="w-8 h-8 text-gray-300 group-hover:text-[#55A4DA]/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span className="text-xs text-gray-400">클릭하여 파일 선택</span>
+                    <span className="text-[11px] text-gray-300">docx · pdf · txt</span>
+                  </div>
+                )}
+              </label>
+              {selectedFile && (
+                <p className="text-xs text-amber-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  AI 자동 파싱은 준비 중입니다. 아래 필드를 직접 입력해주세요.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* 서칭: URL 입력 영역 */}
+          {form.type === '서칭' && (
+            <div className="space-y-2">
+              <label className={labelCls}>원문 URL <span className="text-gray-300 font-normal">(선택)</span></label>
+              <div className="flex gap-2">
+                <input
+                  className={inputCls}
+                  value={sourceUrl}
+                  onChange={e => handleUrlParse(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+              <p className="text-xs text-amber-500 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                AI 자동 파싱은 준비 중입니다. 아래 필드를 직접 입력해주세요.
+              </p>
+            </div>
+          )}
+
+          {/* 구분선 */}
+          {(form.type === '자사' || form.type === '서칭') && (
+            <div className="border-t border-gray-100" />
+          )}
 
           {/* 제목 */}
           <div>
@@ -479,6 +568,7 @@ export default function ContentPage() {
   const [formModal, setFormModal] = useState<{
     mode: 'create' | 'edit';
     data?: ContentPoolItem;
+    sourceType?: ContentSource;
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentPoolItem | null>(null);
 
@@ -542,7 +632,7 @@ export default function ContentPage() {
           <span className="text-gray-800 font-bold">콘텐츠 풀</span>
         </div>
         <button
-          onClick={() => setFormModal({ mode: 'create' })}
+          onClick={() => setFormModal({ mode: 'create', sourceType: activeTab })}
           className="flex items-center gap-2 bg-[#55A4DA] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#3A8BC4] transition-colors shadow-sm"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -653,6 +743,7 @@ export default function ContentPage() {
         <ContentFormModal
           mode={formModal.mode}
           initialData={formModal.data}
+          sourceType={formModal.sourceType}
           onSave={handleSave}
           onClose={() => setFormModal(null)}
         />
