@@ -11,11 +11,18 @@ import { type Round } from '@/lib/content';
 import { getContentList, type ContentPoolItem, type ContentCategory } from '@/lib/api/contentPool';
 import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestion } from '@/store/newNewsletterDraftStore';
 
-type DeliverySchedule = '주 1회' | '격주' | '월 1회';
+type DeliveryInterval = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual';
 type WizardStep = 1 | 2 | 3 | 4;
 type TopicSuggestion = DraftTopicSuggestion;
 
-const DELIVERY_SCHEDULES: DeliverySchedule[] = ['주 1회', '격주', '월 1회'];
+const DELIVERY_INTERVAL_OPTIONS: Array<{ value: DeliveryInterval; label: string; days: number; desc: string }> = [
+  { value: 'weekly',     label: '주간',   days: 7,   desc: '7일마다' },
+  { value: 'biweekly',   label: '격주',   days: 14,  desc: '14일마다' },
+  { value: 'monthly',    label: '월 1회', days: 30,  desc: '30일마다' },
+  { value: 'bimonthly',  label: '월 2회', days: 15,  desc: '15일마다' },
+  { value: 'quarterly',  label: '분기',   days: 90,  desc: '90일마다' },
+  { value: 'semiannual', label: '반기',   days: 180, desc: '180일마다' },
+];
 const DIST_PRIORITY = [2, 3, 1, 0];
 
 const WIZARD_STEPS: Array<{ n: WizardStep; label: string }> = [
@@ -53,6 +60,39 @@ function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]
       surveys: [],
     }))
   );
+}
+
+function getDefaultStartDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().split('T')[0];
+}
+
+function calcScheduleDates(startDate: string, interval: DeliveryInterval, count: number): Date[] {
+  const days = DELIVERY_INTERVAL_OPTIONS.find(o => o.value === interval)?.days ?? 30;
+  const start = new Date(startDate + 'T00:00:00');
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i * days);
+    return d;
+  });
+}
+
+function formatKoreanDate(date: Date): string {
+  return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function calcTotalDuration(startDate: string, interval: DeliveryInterval, count: number): string {
+  if (count <= 1) return '—';
+  const days = DELIVERY_INTERVAL_OPTIONS.find(o => o.value === interval)?.days ?? 30;
+  const totalDays = (count - 1) * days;
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(end.getDate() + totalDays);
+  const startStr = start.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
+  const endStr = end.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
+  const totalMonths = Math.round(totalDays / 30);
+  return `${startStr} ~ ${endStr} (약 ${totalMonths}개월)`;
 }
 
 function ConfigureContent() {
@@ -118,16 +158,17 @@ function ConfigureContent() {
   const [contentPoolCategoryFilter, setContentPoolCategoryFilter] = useState<ContentCategory | ''>('');
 
   // ── 4단계: 발송 주기 ──
-  const [deliverySchedule, setDeliverySchedule] = useState<DeliverySchedule>(configDraft.deliverySchedule);
+  const [deliveryInterval, setDeliveryInterval] = useState<DeliveryInterval | null>(null);
+  const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
 
   // ── draft store 동기화 ──
   useEffect(() => {
     configDraft.setDraft({
       wizardStep, customStoryline, suggestions, rounds,
-      totalRounds, roundDistribution, deliverySchedule,
+      totalRounds, roundDistribution,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution, deliverySchedule]);
+  }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution]);
 
   // 회차 전환 시 ①만 열린 상태로 리셋
   useEffect(() => {
@@ -348,6 +389,28 @@ function ConfigureContent() {
     });
     configDraft.resetDraft();
     router.push(`/admin/newsletters?tab=${encodeURIComponent(status)}`);
+  }
+
+  function handleComplete() {
+    if (!deliveryInterval || !startDate) return;
+    const schedDates = calcScheduleDates(startDate, deliveryInterval, rounds.length);
+    console.log('[뉴스레터 생성 완료]', {
+      meta: { kind, targetCompanies, leadershipTypes, leadersCount },
+      storyline: customStoryline,
+      totalRounds,
+      roundDistribution,
+      rounds,
+      delivery: {
+        interval: deliveryInterval,
+        startDate,
+        schedule: rounds.map((r, idx) => ({
+          round: idx + 1,
+          date: schedDates[idx]?.toISOString().split('T')[0] ?? '',
+          stepTitle: customStoryline[r.stepIndex]?.title ?? '',
+        })),
+      },
+    });
+    handleSave('제작완료');
   }
 
   function switchRound(idx: number) {
@@ -1080,38 +1143,117 @@ function ConfigureContent() {
           4단계: 발송 주기
       ════════════════════════════════ */}
       {wizardStep === 4 && (
-        <div className="flex-1 flex items-center justify-center bg-[#F8FAFC] overflow-y-auto py-12">
-          <div className="w-full max-w-md px-6 space-y-8">
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          <div className="max-w-4xl mx-auto px-8 py-6 space-y-5">
+
+            {/* 헤더 */}
             <div>
-              <h2 className="text-base font-bold text-gray-800 mb-1.5">발송 주기 선택</h2>
-              <p className="text-xs text-gray-400">뉴스레터를 얼마나 자주 발송할지 선택하세요.</p>
+              <h2 className="text-base font-bold text-gray-800 mb-1">발송 주기 설정</h2>
+              <p className="text-xs text-gray-400">주기와 시작일을 선택하면 전체 발송 일정이 자동으로 계산됩니다.</p>
             </div>
-            <div className="space-y-3">
-              {DELIVERY_SCHEDULES.map(s => (
-                <button
-                  key={s}
-                  onClick={() => setDeliverySchedule(s)}
-                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl border-2 text-sm font-semibold transition-all ${
-                    deliverySchedule === s
-                      ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#55A4DA]'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    deliverySchedule === s ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-                  }`}>
-                    {deliverySchedule === s && <div className="w-2 h-2 rounded-full bg-white" />}
+
+            {/* ① 발송 주기 카드 선택 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">발송 주기</p>
+              <div className="grid grid-cols-3 gap-3">
+                {DELIVERY_INTERVAL_OPTIONS.map(opt => {
+                  const isSelected = deliveryInterval === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => setDeliveryInterval(opt.value)}
+                      className={`relative flex flex-col items-center gap-1.5 px-4 py-4 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-[#55A4DA] bg-[#55A4DA]/5'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[#55A4DA] flex items-center justify-center">
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <p className={`text-base font-bold ${isSelected ? 'text-[#55A4DA]' : 'text-gray-800'}`}>{opt.label}</p>
+                      <p className={`text-xs ${isSelected ? 'text-[#55A4DA]/70' : 'text-gray-400'}`}>{opt.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ② 시작일 선택 */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">첫 번째 회차 발송일</p>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition"
+              />
+            </div>
+
+            {/* ③ 발송 일정 미리보기 */}
+            {deliveryInterval && startDate && rounds.length > 0 && (() => {
+              const schedDates = calcScheduleDates(startDate, deliveryInterval, rounds.length);
+              return (
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">발송 일정 미리보기</p>
+                    <span className="text-[11px] text-gray-400">총 {rounds.length}회차</span>
                   </div>
-                  {s}
-                </button>
-              ))}
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <th className="text-left px-6 py-2.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider w-20">회차</th>
+                        <th className="text-left px-6 py-2.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">발송일</th>
+                        <th className="text-left px-6 py-2.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">스토리라인 단계</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {rounds.map((r, idx) => {
+                        const s = customStoryline[r.stepIndex];
+                        const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+                        const date = schedDates[idx];
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-2.5 text-xs font-semibold text-gray-500">{idx + 1}회차</td>
+                            <td className="px-6 py-2.5 text-xs text-gray-800">{date ? formatKoreanDate(date) : '—'}</td>
+                            <td className="px-6 py-2.5">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${color.badge} text-white`}>
+                                {s?.title}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50">
+                    <p className="text-xs text-gray-500">
+                      총 발송 기간: <span className="font-semibold text-gray-700">{calcTotalDuration(startDate, deliveryInterval, rounds.length)}</span>
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ④ 생성 완료 */}
+            <div className="pb-6">
+              <button
+                onClick={handleComplete}
+                disabled={!deliveryInterval || !startDate}
+                className={`w-full py-3.5 text-sm font-bold rounded-xl transition-colors shadow-sm ${
+                  deliveryInterval && startDate
+                    ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                생성 완료
+              </button>
             </div>
-            <button
-              onClick={() => handleSave('제작완료')}
-              className="w-full py-3.5 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
-            >
-              생성 완료
-            </button>
+
           </div>
         </div>
       )}
