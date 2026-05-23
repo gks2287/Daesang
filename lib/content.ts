@@ -1,4 +1,13 @@
+import type { ContentPoolItem } from '@/lib/api/contentPool';
+
 export type ContentType = '글' | '영상' | '인포그래픽' | '카드뉴스';
+
+export interface Round {
+  id: number;
+  stepIndex: number;
+  topic: string;
+  contents: ContentPoolItem[];
+}
 
 export interface ContentItem {
   id: string;
