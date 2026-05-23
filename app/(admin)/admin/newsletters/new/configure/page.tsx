@@ -527,138 +527,157 @@ function ConfigureContent() {
           2단계: 회차 설계
       ════════════════════════════════ */}
       {wizardStep === 2 && (
-        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
-          <div className="max-w-2xl mx-auto px-6 py-10 space-y-6">
-            <div>
+        <div className="flex-1 overflow-hidden bg-[#F8FAFC]">
+          <div className="max-w-5xl w-full mx-auto px-8 py-6 flex flex-col gap-4 h-full">
+
+            {/* 헤더 */}
+            <div className="flex-shrink-0">
               <h2 className="text-base font-bold text-gray-800 mb-1">회차 설계</h2>
               <p className="text-xs text-gray-400">총 발송 회차를 설정하고, 각 단계별 회차 수를 배분하세요. 단계당 최소 1회차가 필요합니다.</p>
             </div>
 
-            {/* 총 회차 설정 */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">총 발송 회차</p>
-              <div className="flex items-center justify-center gap-6">
-                <button
-                  onClick={() => handleTotalRoundsChange(totalRounds - 1)}
-                  disabled={totalRounds <= customStoryline.length}
-                  className="w-10 h-10 rounded-xl border-2 border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold text-lg"
-                >
-                  −
-                </button>
-                <div className="text-center">
-                  <span className="text-4xl font-black text-gray-800">{totalRounds}</span>
-                  <p className="text-xs text-gray-400 mt-1">회차</p>
-                </div>
-                <button
-                  onClick={() => handleTotalRoundsChange(totalRounds + 1)}
-                  className="w-10 h-10 rounded-xl border-2 border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-all font-bold text-lg"
-                >
-                  +
-                </button>
-              </div>
-              <p className="text-center text-[11px] text-gray-400 mt-3">
-                최소 {customStoryline.length}회차 (각 단계당 1회차)
-              </p>
-            </div>
+            {/* 좌우 패널 */}
+            <div className="flex gap-4 flex-1 min-h-0">
 
-            {/* 단계별 배분 */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">단계별 회차 배분</p>
-                <button
-                  onClick={applyAIDistribution}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#55A4DA]/10 hover:bg-[#55A4DA]/20 text-[#55A4DA] text-xs font-bold transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  AI 자동 배분
-                </button>
-              </div>
+              {/* 좌측: 총 회차 + 단계별 배분 */}
+              <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
 
-              <div className="space-y-3">
-                {customStoryline.map((s, i) => {
-                  const color = STEP_COLORS[i % STEP_COLORS.length];
-                  const dist = roundDistribution.find(d => d.stepIndex === i);
-                  const count = dist?.count ?? 1;
-                  return (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-full ${color.badge} flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-white text-xs font-bold">{s.step}</span>
+                {/* 총 발송 회차 */}
+                <div className="px-6 py-5 border-b border-gray-100 flex-shrink-0">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">총 발송 회차</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-5">
+                      <button
+                        onClick={() => handleTotalRoundsChange(totalRounds - 1)}
+                        disabled={totalRounds <= customStoryline.length}
+                        className="w-9 h-9 rounded-xl border-2 border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-bold text-lg"
+                      >
+                        −
+                      </button>
+                      <div className="text-center">
+                        <span className="text-4xl font-black text-gray-800">{totalRounds}</span>
+                        <p className="text-xs text-gray-400 mt-0.5">회차</p>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${color.titleColor}`}>{s.title}</p>
-                        {s.subtitle && <p className="text-[11px] text-gray-400 truncate">{s.subtitle}</p>}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => adjustCount(i, -1)}
-                          disabled={count <= 1}
-                          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sm font-bold"
-                        >
-                          −
-                        </button>
-                        <span className="w-8 text-center text-sm font-bold text-gray-700">{count}</span>
-                        <button
-                          onClick={() => adjustCount(i, 1)}
-                          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-all text-sm font-bold"
-                        >
-                          +
-                        </button>
-                        <span className="text-xs text-gray-400 w-8 text-right">회차</span>
-                      </div>
+                      <button
+                        onClick={() => handleTotalRoundsChange(totalRounds + 1)}
+                        className="w-9 h-9 rounded-xl border-2 border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-all font-bold text-lg"
+                      >
+                        +
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs text-gray-500">배분 합계</span>
-                <div className={`flex items-center gap-1.5 text-sm font-bold ${
-                  distSum === totalRounds ? 'text-emerald-600' : 'text-red-500'
-                }`}>
-                  {distSum === totalRounds ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )}
-                  {distSum} / {totalRounds}회차
+                    <div className="flex flex-col items-end gap-2">
+                      <p className="text-[11px] text-gray-400">최소 {customStoryline.length}회차</p>
+                      <button
+                        onClick={applyAIDistribution}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#55A4DA]/10 hover:bg-[#55A4DA]/20 text-[#55A4DA] text-xs font-bold transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        AI 자동 배분
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              {distSum !== totalRounds && (
-                <p className="mt-2 text-[11px] text-red-500">
-                  배분 합계({distSum}회차)와 총 회차({totalRounds}회차)가 일치해야 합니다.
-                </p>
-              )}
-            </div>
 
-            {/* 회차 미리보기 */}
-            {distSum === totalRounds && (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">회차 미리보기</p>
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {makeRoundsFromDistribution(roundDistribution).map((r, idx) => {
-                    const s = customStoryline[r.stepIndex];
-                    const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
-                    return (
-                      <div key={idx} className="flex items-center gap-3 px-5 py-2.5">
-                        <span className="text-xs text-gray-400 w-12 flex-shrink-0">{idx + 1}회차</span>
-                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${color.badge} text-white`}>
-                          {s?.step}단계
+                {/* 단계별 배분 */}
+                <div className="flex-1 px-6 py-5 flex flex-col min-h-0">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex-shrink-0">단계별 회차 배분</p>
+                  <div className="flex-1 space-y-2.5 overflow-y-auto">
+                    {customStoryline.map((s, i) => {
+                      const color = STEP_COLORS[i % STEP_COLORS.length];
+                      const dist = roundDistribution.find(d => d.stepIndex === i);
+                      const count = dist?.count ?? 1;
+                      return (
+                        <div key={i} className="flex items-center gap-3">
+                          <div className={`w-6 h-6 rounded-full ${color.badge} flex items-center justify-center flex-shrink-0`}>
+                            <span className="text-white text-[10px] font-bold">{s.step}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold truncate ${color.titleColor}`}>{s.title}</p>
+                            {s.subtitle && <p className="text-[10px] text-gray-400 truncate">{s.subtitle}</p>}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => adjustCount(i, -1)}
+                              disabled={count <= 1}
+                              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sm font-bold"
+                            >
+                              −
+                            </button>
+                            <span className="w-7 text-center text-sm font-bold text-gray-700">{count}</span>
+                            <button
+                              onClick={() => adjustCount(i, 1)}
+                              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-all text-sm font-bold"
+                            >
+                              +
+                            </button>
+                            <span className="text-xs text-gray-400 w-6">회차</span>
+                          </div>
                         </div>
-                        <span className="text-xs text-gray-600 truncate">{s?.title}</span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between flex-shrink-0">
+                    <span className="text-xs text-gray-500">합계</span>
+                    <div className={`flex items-center gap-1.5 text-sm font-bold ${
+                      distSum === totalRounds ? 'text-emerald-600' : 'text-red-500'
+                    }`}>
+                      {distSum === totalRounds ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                      {distSum} / {totalRounds}회차
+                      {distSum !== totalRounds && (
+                        <span className="text-[11px] font-normal ml-1">
+                          ({distSum > totalRounds ? `${distSum - totalRounds}회 초과` : `${totalRounds - distSum}회 부족`})
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
               </div>
-            )}
+
+              {/* 우측: 회차 미리보기 */}
+              <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">회차 미리보기</p>
+                  {distSum === totalRounds && (
+                    <span className="text-[11px] text-gray-400">총 {totalRounds}회차</span>
+                  )}
+                </div>
+                {distSum === totalRounds ? (
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="divide-y divide-gray-50">
+                      {makeRoundsFromDistribution(roundDistribution).map((r, idx) => {
+                        const s = customStoryline[r.stepIndex];
+                        const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+                        return (
+                          <div key={idx} className="flex items-center gap-3 px-5 py-2.5">
+                            <span className="text-xs text-gray-400 w-12 flex-shrink-0">{idx + 1}회차</span>
+                            <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${color.badge} text-white flex-shrink-0`}>
+                              {s?.step}단계
+                            </div>
+                            <span className="text-xs text-gray-600 truncate">{s?.title}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-xs text-gray-300">배분을 완료하면 미리보기가 표시됩니다.</p>
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
         </div>
       )}
