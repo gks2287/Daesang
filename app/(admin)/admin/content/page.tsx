@@ -12,7 +12,8 @@ import {
 } from '@/lib/api/contentPool';
 
 // ── 상수 ─────────────────────────────────────────────────────────
-const SOURCES: ContentSource[] = ['자사', '서칭'];
+const SOURCES: ContentSource[] = ['original', 'curation'];
+const SOURCE_LABELS: Record<ContentSource, string> = { original: 'J& 오리지널', curation: '큐레이션' };
 const CATEGORIES: ContentCategory[] = ['아티클', '영상', '기타'];
 
 const CATEGORY_COLOR: Record<ContentCategory, string> = {
@@ -42,7 +43,7 @@ type FormData = {
 
 const EMPTY_FORM: FormData = {
   title: '',
-  type: '자사',
+  type: 'original',
   category: '아티클',
   duration: '',
   author: '',
@@ -82,7 +83,7 @@ function ContentFormModal({
 }) {
   const [form, setForm] = useState<FormData>(() => {
     if (initialData) return itemToForm(initialData);
-    return { ...EMPTY_FORM, type: sourceType ?? '자사' };
+    return { ...EMPTY_FORM, type: sourceType ?? 'original' };
   });
   const [saving, setSaving] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -176,8 +177,8 @@ function ContentFormModal({
         {/* 바디 (스크롤) */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-          {/* 자사: 파일 업로드 영역 */}
-          {form.type === '자사' && (
+          {/* J& 오리지널: 파일 업로드 영역 */}
+          {form.type === 'original' && (
             <div className="space-y-2">
               <label className={labelCls}>파일 업로드 <span className="text-gray-300 font-normal">(선택 · docx / pdf / txt)</span></label>
               <label className="flex flex-col items-center justify-center w-full border-2 border-dashed border-gray-200 rounded-xl py-5 px-4 cursor-pointer hover:border-[#55A4DA]/50 hover:bg-[#55A4DA]/5 transition-colors group">
@@ -222,8 +223,8 @@ function ContentFormModal({
             </div>
           )}
 
-          {/* 서칭: URL 입력 영역 */}
-          {form.type === '서칭' && (
+          {/* 큐레이션: URL 입력 영역 */}
+          {form.type === 'curation' && (
             <div className="space-y-2">
               <label className={labelCls}>원문 URL <span className="text-gray-300 font-normal">(선택)</span></label>
               <div className="flex gap-2">
@@ -241,7 +242,7 @@ function ContentFormModal({
           )}
 
           {/* 구분선 */}
-          {(form.type === '자사' || form.type === '서칭') && (
+          {(form.type === 'original' || form.type === 'curation') && (
             <div className="border-t border-gray-100" />
           )}
 
@@ -294,7 +295,7 @@ function ContentFormModal({
                 className={inputCls}
               >
                 {CATEGORIES.map(cat => (
-                  <option key={cat} value={cat}>{CATEGORY_ICON[cat]} {cat}</option>
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
@@ -562,7 +563,7 @@ function ContentCard({
 // ── ContentPage (메인) ────────────────────────────────────────────
 export default function ContentPage() {
   const [allItems, setAllItems] = useState<ContentPoolItem[]>([]);
-  const [activeTab, setActiveTab] = useState<ContentSource>('자사');
+  const [activeTab, setActiveTab] = useState<ContentSource>('original');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<ContentCategory | ''>('');
   const [formModal, setFormModal] = useState<{
@@ -581,8 +582,8 @@ export default function ContentPage() {
 
   const countByType = useMemo(
     () => ({
-      자사: allItems.filter(i => i.type === '자사').length,
-      서칭: allItems.filter(i => i.type === '서칭').length,
+      original: allItems.filter(i => i.type === 'original').length,
+      curation: allItems.filter(i => i.type === 'curation').length,
     }),
     [allItems],
   );
@@ -660,7 +661,7 @@ export default function ContentPage() {
                   : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
-              {tab}
+              {SOURCE_LABELS[tab]}
               <span
                 className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                   activeTab === tab
@@ -702,7 +703,7 @@ export default function ContentPage() {
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
-                {CATEGORY_ICON[cat]} {cat}
+                {cat}
               </button>
             ))}
           </div>

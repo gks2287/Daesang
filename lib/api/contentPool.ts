@@ -15,7 +15,7 @@
 
 import { MOCK_CONTENT_POOL } from '@/lib/mockData/contentPool';
 
-export type ContentSource = '자사' | '서칭';
+export type ContentSource = 'original' | 'curation';
 export type ContentCategory = '아티클' | '영상' | '기타';
 
 export interface ContentPoolItem {

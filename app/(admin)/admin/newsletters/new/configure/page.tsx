@@ -1018,8 +1018,8 @@ function ConfigureContent() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1 mb-0.5">
                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                        item.type === '자사' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
-                                      }`}>{item.type}</span>
+                                        item.type === 'original' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
+                                      }`}>{item.type === 'original' ? 'J& 오리지널' : '큐레이션'}</span>
                                       <span className="text-[10px] text-gray-400">{item.category} · {item.duration}분</span>
                                     </div>
                                     <p className="text-xs font-semibold text-gray-700 truncate">{item.title}</p>
@@ -1493,8 +1493,8 @@ function ConfigureContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            item.type === '자사' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
-                          }`}>{item.type}</span>
+                            item.type === 'original' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
+                          }`}>{item.type === 'original' ? 'J& 오리지널' : '큐레이션'}</span>
                           <span className="text-[10px] text-gray-400">{item.category}</span>
                         </div>
                         <p className="text-xs font-semibold text-gray-800 truncate">{item.title}</p>
@@ -1769,8 +1769,8 @@ function ConfigureContent() {
                                 <li key={c.id} className="flex items-start gap-2">
                                   <span className="text-gray-300 flex-shrink-0 mt-0.5 text-xs">·</span>
                                   <span className="text-xs text-gray-700 flex-1">{c.title}</span>
-                                  <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.type === '자사' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
-                                    {c.type}
+                                  <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.type === 'original' ? 'bg-blue-50 text-blue-500' : 'bg-orange-50 text-orange-500'}`}>
+                                    {c.type === 'original' ? 'J& 오리지널' : '큐레이션'}
                                   </span>
                                 </li>
                               ))}
