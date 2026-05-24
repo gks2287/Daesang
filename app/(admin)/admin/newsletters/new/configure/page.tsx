@@ -1439,15 +1439,15 @@ function ConfigureContent() {
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition"
                 />
               </div>
-              <div className="flex gap-1.5">
-                {(['', '아티클', '영상', '기타'] as const).map(cat => (
+              <div className="flex gap-1.5 overflow-x-auto">
+                {(['', '아티클', '인터뷰', '책 추천', '성공 사례', '카드뉴스', '웹툰', '영상'] as const).map(cat => (
                   <button
                     key={cat}
                     onClick={() => {
                       setContentPoolCategoryFilter(cat);
                       void loadContentPool(contentPoolQuery, cat);
                     }}
-                    className={`px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                    className={`flex-shrink-0 px-3 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
                       contentPoolCategoryFilter === cat
                         ? 'bg-[#55A4DA] text-white'
                         : 'bg-gray-100 text-gray-500 hover:bg-gray-200'

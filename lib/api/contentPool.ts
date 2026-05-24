@@ -1,7 +1,7 @@
 // TODO: 추후 뉴스레터 위저드와 통합 시 고려사항
 //
 // [category가 lib/content.ts의 ContentType과 다른 이유]
-// - 이 파일의 ContentCategory = '아티클' | '영상' | '기타'  → 콘텐츠 풀 관리 도메인. "발행 형태" 기준.
+// - 이 파일의 ContentCategory = '아티클' | '인터뷰' | '책 추천' | '성공 사례' | '카드뉴스' | '웹툰' | '영상'  → 콘텐츠 풀 관리 도메인. "발행 형태" 기준.
 // - lib/content.ts의 ContentType = '글' | '영상' | '인포그래픽' | '카드뉴스'  → 뉴스레터 위저드 도메인. "독자 경험 형태" 기준.
 // 콘텐츠 풀은 원본 에셋 관리 관점이고, 위저드는 독자가 소비하는 방식 관점이기 때문에 의도적으로 분리.
 //
@@ -16,7 +16,7 @@
 import { MOCK_CONTENT_POOL } from '@/lib/mockData/contentPool';
 
 export type ContentSource = 'original' | 'curation';
-export type ContentCategory = '아티클' | '영상' | '기타';
+export type ContentCategory = '아티클' | '인터뷰' | '책 추천' | '성공 사례' | '카드뉴스' | '웹툰' | '영상';
 
 export interface ContentPoolItem {
   id: string;

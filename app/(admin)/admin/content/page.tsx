@@ -14,18 +14,16 @@ import {
 // ── 상수 ─────────────────────────────────────────────────────────
 const SOURCES: ContentSource[] = ['original', 'curation'];
 const SOURCE_LABELS: Record<ContentSource, string> = { original: 'J& 오리지널', curation: '큐레이션' };
-const CATEGORIES: ContentCategory[] = ['아티클', '영상', '기타'];
+const CATEGORIES: ContentCategory[] = ['아티클', '인터뷰', '책 추천', '성공 사례', '카드뉴스', '웹툰', '영상'];
 
 const CATEGORY_COLOR: Record<ContentCategory, string> = {
   아티클: 'bg-gray-100 text-gray-600',
+  인터뷰: 'bg-blue-50 text-blue-600',
+  '책 추천': 'bg-amber-50 text-amber-700',
+  '성공 사례': 'bg-emerald-50 text-emerald-700',
+  카드뉴스: 'bg-purple-50 text-purple-600',
+  웹툰: 'bg-pink-50 text-pink-600',
   영상: 'bg-red-50 text-red-600',
-  기타: 'bg-purple-50 text-purple-600',
-};
-
-const CATEGORY_ICON: Record<ContentCategory, string> = {
-  아티클: '📄',
-  영상: '▶',
-  기타: '📎',
 };
 
 // ── Form 타입 & 헬퍼 ──────────────────────────────────────────────
@@ -500,9 +498,8 @@ function ContentCard({
         {/* 분류 뱃지 */}
         <div className="absolute top-2.5 left-2.5">
           <span
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold shadow-sm ${CATEGORY_COLOR[item.category]}`}
+            className={`inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-bold shadow-sm ${CATEGORY_COLOR[item.category]}`}
           >
-            <span className="text-[10px]">{CATEGORY_ICON[item.category]}</span>
             {item.category}
           </span>
         </div>
@@ -676,9 +673,9 @@ export default function ContentPage() {
         </div>
 
         {/* 필터 영역 */}
-        <div className="flex items-center gap-3 py-3 flex-wrap">
+        <div className="py-3 space-y-2">
           {/* 검색창 */}
-          <div className="relative flex-1 min-w-48">
+          <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -691,13 +688,13 @@ export default function ContentPage() {
             />
           </div>
 
-          {/* 분류 필터 */}
-          <div className="flex gap-1.5">
+          {/* 분류 필터 — 가로 스크롤 */}
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {CATEGORIES.map(cat => (
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(categoryFilter === cat ? '' : cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   categoryFilter === cat
                     ? 'bg-[#55A4DA] text-white'
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
