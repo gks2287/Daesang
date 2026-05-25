@@ -3,60 +3,570 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useNewsletterStore, type NewsletterStatus } from '@/store/newsletterStore';
 
-const TABS: Array<'최근' | NewsletterStatus> = ['최근', '제작 중', '제작완료'];
+// ── 타입 ─────────────────────────────────────────────────────────────
+type RoundStatus = 'inProgress' | 'completed';
+type Polarity = 'positive' | 'negative';
+type TabType = '최근' | '제작 중' | '제작완료';
 
-const statusStyle: Record<NewsletterStatus, { bg: string; text: string; dot: string }> = {
-  '제작 중':  { bg: 'bg-yellow-50', text: 'text-yellow-600', dot: 'bg-yellow-400' },
-  '제작완료': { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-400' },
-};
+interface RoundData {
+  id: string;
+  round: number;
+  stage: string;
+  topic: string | null;
+  status: RoundStatus;
+  progressPct: number;
+}
+
+interface TypeData {
+  typeName: string;
+  count: number;
+  rounds: RoundData[];
+}
+
+interface PolarityGroup {
+  polarity: Polarity;
+  totalCount: number;
+  types: TypeData[];
+}
+
+interface CompanyData {
+  companyId: number;
+  companyName: string;
+  totalLeaders: number;
+  groups: PolarityGroup[];
+  updatedAt: string;
+}
+
+interface PreviewTarget {
+  companyName: string;
+  polarity: Polarity;
+  typeName: string;
+  count: number;
+  round: RoundData;
+}
+
+// ── 목업 데이터 ──────────────────────────────────────────────────────
+const STAGES = ['수용', '분석', '실행', '적용', '공유', '성찰'];
+
+function mk(cid: number, pol: string, type: string, round: number, topic: string | null, status: RoundStatus, pct: number): RoundData {
+  return { id: `c${cid}-${pol}-${type}-${round}`, round, stage: STAGES[round - 1], topic, status, progressPct: pct };
+}
+
+const MOCK_COMPANIES: CompanyData[] = [
+  {
+    companyId: 1, companyName: 'LG화학', totalLeaders: 13, updatedAt: '2026-05-16',
+    groups: [
+      {
+        polarity: 'positive', totalCount: 8,
+        types: [
+          { typeName: '코칭형', count: 5, rounds: [
+            mk(1,'positive','코칭형',1,'나의 리더십을 돌아보며','completed',100),
+            mk(1,'positive','코칭형',2,'강점을 발견하는 시간','completed',100),
+            mk(1,'positive','코칭형',3,'코칭 대화 시작하기','inProgress',60),
+            mk(1,'positive','코칭형',4,null,'inProgress',0),
+            mk(1,'positive','코칭형',5,null,'inProgress',0),
+            mk(1,'positive','코칭형',6,null,'inProgress',0),
+          ]},
+          { typeName: '민주형', count: 3, rounds: [
+            mk(1,'positive','민주형',1,'팀원과의 신뢰 쌓기','completed',100),
+            mk(1,'positive','민주형',2,'민주적 의사결정 이해','inProgress',40),
+            mk(1,'positive','민주형',3,null,'inProgress',0),
+            mk(1,'positive','민주형',4,null,'inProgress',0),
+            mk(1,'positive','민주형',5,null,'inProgress',0),
+            mk(1,'positive','민주형',6,null,'inProgress',0),
+          ]},
+        ],
+      },
+      {
+        polarity: 'negative', totalCount: 5,
+        types: [
+          { typeName: '독재형', count: 3, rounds: [
+            mk(1,'negative','독재형',1,'나의 리더십을 돌아보며','completed',100),
+            mk(1,'negative','독재형',2,'독재적 패턴 인식하기','completed',100),
+            mk(1,'negative','독재형',3,'경청과 소통 연습','inProgress',30),
+            mk(1,'negative','독재형',4,null,'inProgress',0),
+            mk(1,'negative','독재형',5,null,'inProgress',0),
+            mk(1,'negative','독재형',6,null,'inProgress',0),
+          ]},
+          { typeName: '방관형', count: 2, rounds: [
+            mk(1,'negative','방관형',1,'책임감의 의미 되새기기','inProgress',50),
+            mk(1,'negative','방관형',2,null,'inProgress',0),
+            mk(1,'negative','방관형',3,null,'inProgress',0),
+            mk(1,'negative','방관형',4,null,'inProgress',0),
+            mk(1,'negative','방관형',5,null,'inProgress',0),
+            mk(1,'negative','방관형',6,null,'inProgress',0),
+          ]},
+        ],
+      },
+    ],
+  },
+  {
+    companyId: 2, companyName: '현대모비스', totalLeaders: 9, updatedAt: '2026-05-14',
+    groups: [
+      {
+        polarity: 'positive', totalCount: 4,
+        types: [
+          { typeName: '코칭형', count: 4, rounds: [
+            mk(2,'positive','코칭형',1,'성장을 이끄는 질문법','completed',100),
+            mk(2,'positive','코칭형',2,'코칭형 리더의 핵심 역량','inProgress',70),
+            mk(2,'positive','코칭형',3,null,'inProgress',0),
+            mk(2,'positive','코칭형',4,null,'inProgress',0),
+            mk(2,'positive','코칭형',5,null,'inProgress',0),
+            mk(2,'positive','코칭형',6,null,'inProgress',0),
+          ]},
+        ],
+      },
+      {
+        polarity: 'negative', totalCount: 5,
+        types: [
+          { typeName: '불통형', count: 3, rounds: [
+            mk(2,'negative','불통형',1,'소통의 벽을 허물다','completed',100),
+            mk(2,'negative','불통형',2,'경청하는 리더 되기','completed',100),
+            mk(2,'negative','불통형',3,'열린 대화 문화 만들기','inProgress',45),
+            mk(2,'negative','불통형',4,null,'inProgress',0),
+            mk(2,'negative','불통형',5,null,'inProgress',0),
+            mk(2,'negative','불통형',6,null,'inProgress',0),
+          ]},
+          { typeName: '성과압박형', count: 2, rounds: [
+            mk(2,'negative','성과압박형',1,'압박 없이 성과 내기','inProgress',80),
+            mk(2,'negative','성과압박형',2,null,'inProgress',0),
+            mk(2,'negative','성과압박형',3,null,'inProgress',0),
+            mk(2,'negative','성과압박형',4,null,'inProgress',0),
+            mk(2,'negative','성과압박형',5,null,'inProgress',0),
+            mk(2,'negative','성과압박형',6,null,'inProgress',0),
+          ]},
+        ],
+      },
+    ],
+  },
+  {
+    companyId: 3, companyName: 'SK하이닉스', totalLeaders: 6, updatedAt: '2026-03-25',
+    groups: [
+      {
+        polarity: 'negative', totalCount: 6,
+        types: [
+          { typeName: '방관형', count: 6, rounds: [
+            mk(3,'negative','방관형',1,'리더의 존재 이유','completed',100),
+            mk(3,'negative','방관형',2,'방관의 원인 찾기','completed',100),
+            mk(3,'negative','방관형',3,'작은 개입으로 변화 시작','completed',100),
+            mk(3,'negative','방관형',4,'현장 변화 실천기','completed',100),
+            mk(3,'negative','방관형',5,'팀원과 함께한 여정','completed',100),
+            mk(3,'negative','방관형',6,'지속 가능한 리더십 정착','completed',100),
+          ]},
+        ],
+      },
+    ],
+  },
+  {
+    companyId: 4, companyName: 'KT&G', totalLeaders: 8, updatedAt: '2026-05-12',
+    groups: [
+      {
+        polarity: 'positive', totalCount: 8,
+        types: [
+          { typeName: '민주형', count: 5, rounds: [
+            mk(4,'positive','민주형',1,'함께 만드는 비전','completed',100),
+            mk(4,'positive','민주형',2,'팀 참여를 높이는 방법','inProgress',55),
+            mk(4,'positive','민주형',3,null,'inProgress',0),
+            mk(4,'positive','민주형',4,null,'inProgress',0),
+            mk(4,'positive','민주형',5,null,'inProgress',0),
+            mk(4,'positive','민주형',6,null,'inProgress',0),
+          ]},
+          { typeName: '코칭형', count: 3, rounds: [
+            mk(4,'positive','코칭형',1,'질문으로 이끄는 리더십','inProgress',90),
+            mk(4,'positive','코칭형',2,null,'inProgress',0),
+            mk(4,'positive','코칭형',3,null,'inProgress',0),
+            mk(4,'positive','코칭형',4,null,'inProgress',0),
+            mk(4,'positive','코칭형',5,null,'inProgress',0),
+            mk(4,'positive','코칭형',6,null,'inProgress',0),
+          ]},
+        ],
+      },
+    ],
+  },
+  {
+    companyId: 5, companyName: '포스코', totalLeaders: 7, updatedAt: '2025-09-20',
+    groups: [
+      {
+        polarity: 'negative', totalCount: 7,
+        types: [
+          { typeName: '독재형', count: 4, rounds: [
+            mk(5,'negative','독재형',1,'권위와 신뢰 사이에서','completed',100),
+            mk(5,'negative','독재형',2,'지시에서 협의로','completed',100),
+            mk(5,'negative','독재형',3,'팀원의 목소리 듣기','completed',100),
+            mk(5,'negative','독재형',4,'자율성을 허용하는 연습','completed',100),
+            mk(5,'negative','독재형',5,'변화된 리더십 나누기','completed',100),
+            mk(5,'negative','독재형',6,'지속 가능한 성장 계획','completed',100),
+          ]},
+          { typeName: '감정기복형', count: 3, rounds: [
+            mk(5,'negative','감정기복형',1,'감정 인식의 첫 걸음','completed',100),
+            mk(5,'negative','감정기복형',2,'감정 조절 패턴 이해','completed',100),
+            mk(5,'negative','감정기복형',3,'안정적 리더십 실천','completed',100),
+            mk(5,'negative','감정기복형',4,'팀 심리 안전감 구축','completed',100),
+            mk(5,'negative','감정기복형',5,'일관성 있는 소통하기','completed',100),
+            mk(5,'negative','감정기복형',6,'평온한 리더로 마무리','completed',100),
+          ]},
+        ],
+      },
+    ],
+  },
+];
 
 const leadershipColor: Record<string, string> = {
-  '독재형':    'bg-red-100 text-red-600',
-  '방관형':    'bg-orange-100 text-orange-600',
-  '성과압박형': 'bg-purple-100 text-purple-600',
-  '불통형':    'bg-pink-100 text-pink-600',
-  '불명확형':  'bg-indigo-100 text-indigo-600',
-  '감정기복형': 'bg-amber-100 text-amber-600',
+  '독재형': 'bg-red-100 text-red-700', '방관형': 'bg-orange-100 text-orange-700',
+  '성과압박형': 'bg-purple-100 text-purple-700', '불통형': 'bg-pink-100 text-pink-700',
+  '불명확형': 'bg-indigo-100 text-indigo-700', '감정기복형': 'bg-amber-100 text-amber-700',
+  '코칭형': 'bg-blue-100 text-blue-700', '민주형': 'bg-sky-100 text-sky-700',
+  '비전형': 'bg-teal-100 text-teal-700', '지원형': 'bg-green-100 text-green-700',
+  '혁신형': 'bg-violet-100 text-violet-700',
 };
 
+function filterRounds(rounds: RoundData[], tab: TabType): RoundData[] {
+  if (tab === '제작 중') return rounds.filter(r => r.status === 'inProgress');
+  if (tab === '제작완료') return rounds.filter(r => r.status === 'completed');
+  return rounds;
+}
+
+// ── 미리보기 모달 ────────────────────────────────────────────────────
+function PreviewModal({ target, onClose }: { target: PreviewTarget; onClose: () => void }) {
+  const isDone = target.round.status === 'completed';
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-bold text-gray-800">뉴스레터 미리보기</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-[#55A4DA] text-sm font-bold">{target.companyName.slice(0, 2)}</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800">{target.companyName}</p>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${target.polarity === 'positive' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
+                  {target.polarity === 'positive' ? '긍정적' : '부정적'}
+                </span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${leadershipColor[target.typeName] ?? 'bg-gray-100 text-gray-500'}`}>
+                  {target.typeName}
+                </span>
+                <span className="text-xs text-gray-400">{target.count}명</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-800">{target.round.round}회차</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 font-medium">{target.round.stage}</span>
+              </div>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-yellow-50 text-yellow-600'}`}>
+                {isDone ? '제작완료' : '제작 중'}
+              </span>
+            </div>
+            <p className={`text-sm font-medium ${target.round.topic ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+              {target.round.topic ?? '주제 미선정'}
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className={`h-2 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-[#55A4DA]'}`} style={{ width: `${target.round.progressPct}%` }} />
+              </div>
+              <span className="text-xs font-semibold text-gray-500">{target.round.progressPct}%</span>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 발송 확인 모달 ──────────────────────────────────────────────────
+function SendConfirmModal({ count, onConfirm, onClose }: { count: number; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-5 h-5 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">뉴스레터 발송</h3>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              선택한 <span className="font-semibold text-gray-700">{count}개</span> 뉴스레터를 발송하시겠습니까?
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors">발송</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 4단계: 회차 행 ───────────────────────────────────────────────────
+function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab, isSelected, onSelect, onPreview }: {
+  round: RoundData; companyName: string; polarity: Polarity; typeName: string; count: number;
+  isCompleteTab: boolean; isSelected: boolean;
+  onSelect: (checked: boolean) => void; onPreview: (t: PreviewTarget) => void;
+}) {
+  const isDone = round.status === 'completed';
+  return (
+    <div className={`flex items-center gap-3 pl-24 pr-5 py-2.5 border-b border-gray-100 last:border-b-0 transition-colors ${isSelected ? 'bg-[#55A4DA]/5' : 'bg-white hover:bg-gray-50/50'}`}>
+      {isCompleteTab && (
+        <input type="checkbox" checked={isSelected} onChange={e => onSelect(e.target.checked)}
+          className="w-3.5 h-3.5 accent-[#55A4DA] cursor-pointer flex-shrink-0" />
+      )}
+      <span className="text-xs font-semibold text-gray-400 w-10 flex-shrink-0">{round.round}회차</span>
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium flex-shrink-0 w-9 text-center">{round.stage}</span>
+      <span className={`flex-1 text-sm min-w-0 truncate ${round.topic ? 'text-gray-700' : 'text-gray-300 italic'}`}>
+        {round.topic ?? '주제 미선정'}
+      </span>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="w-20 bg-gray-100 rounded-full h-1.5">
+          <div className={`h-1.5 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-[#55A4DA]'}`} style={{ width: `${round.progressPct}%` }} />
+        </div>
+        <span className="text-[11px] text-gray-400 w-8 text-right">{round.progressPct}%</span>
+      </div>
+      <div className="flex-shrink-0 w-[72px] text-right">
+        {isDone ? (
+          <button onClick={() => onPreview({ companyName, polarity, typeName, count, round })}
+            className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors whitespace-nowrap">
+            미리보기
+          </button>
+        ) : (
+          <Link href="/admin/newsletters/new/configure"
+            className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#55A4DA]/10 text-[#55A4DA] hover:bg-[#55A4DA]/20 transition-colors whitespace-nowrap">
+            이어하기
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 3단계: 리더십 유형 행 ────────────────────────────────────────────
+function TypeRow({ typeData, visibleRounds, companyId, companyName, polarity, openKeys, onToggle, isCompleteTab, selectedIds, onSelect, onPreview }: {
+  typeData: TypeData; visibleRounds: RoundData[]; companyId: number; companyName: string; polarity: Polarity;
+  openKeys: Set<string>; onToggle: (k: string) => void; isCompleteTab: boolean;
+  selectedIds: Set<string>; onSelect: (id: string, checked: boolean) => void; onPreview: (t: PreviewTarget) => void;
+}) {
+  const key = `c${companyId}-${polarity}-${typeData.typeName}`;
+  const isOpen = openKeys.has(key);
+  return (
+    <div>
+      <button onClick={() => onToggle(key)}
+        className="w-full flex items-center gap-3 pl-16 pr-5 py-2.5 bg-white border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-left">
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${leadershipColor[typeData.typeName] ?? 'bg-gray-100 text-gray-500'}`}>
+          {typeData.typeName}
+        </span>
+        <span className="text-sm text-gray-600 font-medium flex-1">{typeData.count}명</span>
+        <span className="text-xs text-gray-400">{visibleRounds.length}회차</span>
+        <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && visibleRounds.map(round => (
+        <RoundRow key={round.id} round={round} companyName={companyName} polarity={polarity}
+          typeName={typeData.typeName} count={typeData.count} isCompleteTab={isCompleteTab}
+          isSelected={selectedIds.has(round.id)} onSelect={checked => onSelect(round.id, checked)} onPreview={onPreview} />
+      ))}
+    </div>
+  );
+}
+
+// ── 2단계: 긍정/부정 행 ──────────────────────────────────────────────
+function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isCompleteTab, selectedIds, onSelect, onPreview, activeTab }: {
+  group: PolarityGroup; companyId: number; companyName: string;
+  openKeys: Set<string>; onToggle: (k: string) => void; isCompleteTab: boolean;
+  selectedIds: Set<string>; onSelect: (id: string, checked: boolean) => void;
+  onPreview: (t: PreviewTarget) => void; activeTab: TabType;
+}) {
+  const key = `c${companyId}-${group.polarity}`;
+  const isOpen = openKeys.has(key);
+  const isPositive = group.polarity === 'positive';
+
+  const visibleTypes = useMemo(() =>
+    group.types
+      .map(t => ({ ...t, visibleRounds: filterRounds(t.rounds, activeTab) }))
+      .filter(t => t.visibleRounds.length > 0),
+    [group.types, activeTab]
+  );
+
+  if (visibleTypes.length === 0) return null;
+
+  const totalVisible = visibleTypes.reduce((s, t) => s + t.visibleRounds.length, 0);
+
+  return (
+    <div>
+      <button onClick={() => onToggle(key)}
+        className={`w-full flex items-center gap-3 pl-8 pr-5 py-2.5 border-b border-gray-100 transition-colors text-left ${isPositive ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'bg-red-50/20 hover:bg-red-50/40'}`}>
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isPositive ? 'bg-blue-400' : 'bg-red-400'}`} />
+        <span className={`text-sm font-semibold flex-1 ${isPositive ? 'text-blue-700' : 'text-red-700'}`}>
+          {isPositive ? '긍정적 리더' : '부정적 리더'}
+        </span>
+        <span className="text-xs text-gray-500">{group.totalCount}명</span>
+        <span className="text-xs text-gray-400 ml-1">{totalVisible}회차</span>
+        <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && visibleTypes.map(t => (
+        <TypeRow key={t.typeName} typeData={t} visibleRounds={t.visibleRounds}
+          companyId={companyId} companyName={companyName} polarity={group.polarity}
+          openKeys={openKeys} onToggle={onToggle} isCompleteTab={isCompleteTab}
+          selectedIds={selectedIds} onSelect={onSelect} onPreview={onPreview} />
+      ))}
+    </div>
+  );
+}
+
+// ── 1단계: 기업 행 ───────────────────────────────────────────────────
+function CompanyRow({ company, openKeys, onToggle, isCompleteTab, selectedIds, onSelect, onPreview, activeTab }: {
+  company: CompanyData; openKeys: Set<string>; onToggle: (k: string) => void;
+  isCompleteTab: boolean; selectedIds: Set<string>; onSelect: (id: string, checked: boolean) => void;
+  onPreview: (t: PreviewTarget) => void; activeTab: TabType;
+}) {
+  const key = `c${company.companyId}`;
+  const isOpen = openKeys.has(key);
+
+  const hasVisible = useMemo(() =>
+    company.groups.some(g => g.types.some(t => filterRounds(t.rounds, activeTab).length > 0)),
+    [company.groups, activeTab]
+  );
+
+  const allRounds = useMemo(() => company.groups.flatMap(g => g.types.flatMap(t => t.rounds)), [company.groups]);
+  const completedCount = allRounds.filter(r => r.status === 'completed').length;
+  const totalCount = allRounds.length;
+  const progressPct = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
+
+  if (!hasVisible) return null;
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden mb-3 shadow-sm">
+      <button onClick={() => onToggle(key)}
+        className="w-full flex items-center gap-4 px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors text-left">
+        <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
+          <span className="text-[#55A4DA] text-sm font-bold">{company.companyName.slice(0, 2)}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-800">{company.companyName}</span>
+            <span className="text-xs text-gray-400">리더 {company.totalLeaders}명</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-xs text-gray-400">{completedCount}/{totalCount}회차 완료</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="w-36 bg-gray-200 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-[#55A4DA]" style={{ width: `${progressPct}%` }} />
+            </div>
+            <span className="text-[11px] text-gray-400">{progressPct}%</span>
+          </div>
+        </div>
+        <span className="text-xs text-gray-400 flex-shrink-0">{company.updatedAt}</span>
+        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div>
+          {company.groups.map(group => (
+            <PolarityRow key={group.polarity} group={group} companyId={company.companyId}
+              companyName={company.companyName} openKeys={openKeys} onToggle={onToggle}
+              isCompleteTab={isCompleteTab} selectedIds={selectedIds} onSelect={onSelect}
+              onPreview={onPreview} activeTab={activeTab} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 메인 콘텐츠 ─────────────────────────────────────────────────────
 function NewslettersContent() {
-  const newsletters = useNewsletterStore(s => s.newsletters);
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'최근' | NewsletterStatus>('최근');
+  const [activeTab, setActiveTab] = useState<TabType>('최근');
   const [search, setSearch] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const [selectedRoundIds, setSelectedRoundIds] = useState<Set<string>>(new Set());
+  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === '제작 중' || tab === '제작완료') {
-      setActiveTab(tab);
-    }
+    if (tab === '제작 중' || tab === '제작완료') setActiveTab(tab as TabType);
   }, [searchParams]);
 
-  const filtered = useMemo(() => {
-    let list = newsletters;
-    if (activeTab !== '최근') list = list.filter(n => n.status === activeTab);
+  useEffect(() => {
+    setSelectedRoundIds(new Set());
+    setOpenKeys(new Set());
+  }, [activeTab]);
+
+  const isCompleteTab = activeTab === '제작완료';
+
+  const countByStatus = useMemo(() => {
+    const all = MOCK_COMPANIES.flatMap(c => c.groups.flatMap(g => g.types.flatMap(t => t.rounds)));
+    return { '제작 중': all.filter(r => r.status === 'inProgress').length, '제작완료': all.filter(r => r.status === 'completed').length };
+  }, []);
+
+  const filteredCompanies = useMemo(() => {
+    let list = [...MOCK_COMPANIES].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    if (companyFilter) list = list.filter(c => c.companyName === companyFilter);
     if (search.trim()) {
       const q = search.trim();
-      list = list.filter(n =>
-        n.title.includes(q) ||
-        n.companyName.includes(q) ||
-        n.leadershipType.includes(q)
-      );
+      list = list.filter(c => c.companyName.includes(q));
     }
     return list;
-  }, [newsletters, activeTab, search]);
+  }, [companyFilter, search]);
 
-  const countByStatus = useMemo(() => ({
-    '제작 중': newsletters.filter(n => n.status === '제작 중').length,
-    '제작완료': newsletters.filter(n => n.status === '제작완료').length,
-  }), [newsletters]);
+  const allVisibleCompletedIds = useMemo(() => {
+    if (!isCompleteTab) return [];
+    return filteredCompanies.flatMap(c => c.groups.flatMap(g => g.types.flatMap(t => t.rounds)))
+      .filter(r => r.status === 'completed').map(r => r.id);
+  }, [filteredCompanies, isCompleteTab]);
+
+  const allSelected = allVisibleCompletedIds.length > 0 && allVisibleCompletedIds.every(id => selectedRoundIds.has(id));
+  const someSelected = allVisibleCompletedIds.some(id => selectedRoundIds.has(id));
+
+  function toggleKey(k: string) {
+    setOpenKeys(prev => { const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next; });
+  }
+
+  function handleSelect(id: string, checked: boolean) {
+    setSelectedRoundIds(prev => { const next = new Set(prev); checked ? next.add(id) : next.delete(id); return next; });
+  }
+
+  function handleSelectAll(checked: boolean) {
+    setSelectedRoundIds(checked ? new Set(allVisibleCompletedIds) : new Set());
+  }
+
+  function handleSendConfirm() {
+    console.log('발송 대상 round IDs:', Array.from(selectedRoundIds));
+    setSendConfirmOpen(false);
+    setSelectedRoundIds(new Set());
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <span>리더십 코칭 관리</span>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,51 +574,13 @@ function NewslettersContent() {
           </svg>
           <span className="text-gray-800 font-bold">뉴스레터 제작</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="뉴스레터 검색"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="bg-transparent text-sm text-gray-600 placeholder-gray-400 outline-none w-32"
-            />
-          </div>
-        </div>
       </div>
 
       {/* 본문 */}
       <div className="flex-1 px-8 py-6 flex flex-col overflow-hidden bg-white">
-        {/* 탭 */}
-        <div className="flex gap-6 border-b border-gray-200 mb-6 pl-2">
-          {TABS.map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab
-                  ? 'border-[#55A4DA] text-[#55A4DA]'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              {tab}
-              {tab !== '최근' && (
-                <span className="ml-1.5 text-xs text-gray-400">
-                  {countByStatus[tab]}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
         {/* 새로 만들기 */}
-        <Link
-          href="/admin/newsletters/new"
-          className="flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group"
-        >
+        <Link href="/admin/newsletters/new"
+          className="flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group">
           <div className="w-10 h-10 rounded-xl bg-[#55A4DA] group-hover:bg-[#3A8BC4] flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -120,23 +592,37 @@ function NewslettersContent() {
           </div>
         </Link>
 
-        {/* 카드 목록 */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden flex-1">
-          {/* 목록 헤더 */}
-          <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-gray-50/60">
-            <p className="text-sm text-gray-500 font-medium">뉴스레터 목록</p>
-            <p className="text-sm font-semibold text-[#55A4DA]">{filtered.length}건</p>
-          </div>
+        {/* 탭 */}
+        <div className="flex gap-6 border-b border-gray-200 mb-4 pl-2">
+          {(['최근', '제작 중', '제작완료'] as TabType[]).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'border-[#55A4DA] text-[#55A4DA]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+              {tab}
+              {tab !== '최근' && <span className="ml-1.5 text-xs text-gray-400">{countByStatus[tab]}</span>}
+            </button>
+          ))}
+        </div>
 
-          {/* 컬럼 헤더 */}
-          <div className="grid grid-cols-[2fr_1.8fr_1.5fr_1fr_80px] px-6 py-2.5 bg-gray-50 border-b border-gray-200">
-            {['기업명', '뉴스레터 생성 대상', '뉴스레터 생성 현황', '수정일', ''].map(h => (
-              <p key={h} className="text-xs font-semibold text-gray-400 tracking-wider">{h}</p>
-            ))}
+        {/* 검색 + 기업 필터 */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 w-52">
+            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" placeholder="기업명 검색" value={search} onChange={e => setSearch(e.target.value)}
+              className="bg-transparent text-sm text-gray-600 placeholder-gray-400 outline-none w-full" />
           </div>
+          <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 bg-gray-50 outline-none focus:border-[#55A4DA] transition-colors cursor-pointer">
+            <option value="">전체 기업</option>
+            {MOCK_COMPANIES.map(c => <option key={c.companyId} value={c.companyName}>{c.companyName}</option>)}
+          </select>
+        </div>
 
-          {filtered.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 py-16">
+        {/* 드릴다운 목록 */}
+        <div className="flex-1 overflow-y-auto pr-1">
+          {filteredCompanies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <svg className="w-12 h-12 mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
@@ -144,67 +630,38 @@ function NewslettersContent() {
               <p className="text-xs text-gray-300 mt-1">새로 만들기를 눌러 뉴스레터를 제작해보세요.</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 overflow-y-auto flex-1">
-              {filtered.map(n => {
-                const st = statusStyle[n.status];
-                const lc = leadershipColor[n.leadershipType] ?? 'bg-gray-100 text-gray-500';
-                const progressPct = Math.round((n.stepCount / 6) * 100);
-
-                return (
-                  <div
-                    key={n.id}
-                    className="grid grid-cols-[2fr_1.8fr_1.5fr_1fr_80px] px-6 py-4 items-center hover:bg-gray-50/70 transition-colors cursor-pointer"
-                  >
-                    {/* 기업명 */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[#55A4DA] text-xs font-bold">{n.companyName.slice(0, 2)}</span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{n.companyName}</p>
-                        <p className="text-xs text-gray-400 truncate">{n.title}</p>
-                      </div>
-                    </div>
-
-                    {/* 뉴스레터 생성 대상 */}
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${lc}`}>{n.leadershipType}</span>
-                      <span className="text-xs text-gray-400">· 스텝 {n.stepCount}/6</span>
-                    </div>
-
-                    {/* 뉴스레터 생성 현황 */}
-                    <div className="flex items-center gap-3">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${st.bg} ${st.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                        {n.status}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-16 bg-gray-100 rounded-full h-1.5">
-                          <div
-                            className={`h-1.5 rounded-full transition-all ${n.status === '제작완료' ? 'bg-emerald-400' : 'bg-[#55A4DA]'}`}
-                            style={{ width: `${progressPct}%` }}
-                          />
-                        </div>
-                        <span className={`text-xs font-semibold ${n.status === '제작완료' ? 'text-emerald-600' : 'text-[#55A4DA]'}`}>
-                          {progressPct}%
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 수정일 */}
-                    <p className="text-sm text-gray-500">{n.updatedAt}</p>
-
-                    {/* 화살표 */}
-                    <div className="flex items-center justify-end">
-                      <span className="text-xs text-[#55A4DA] font-medium">상세 →</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            filteredCompanies.map(company => (
+              <CompanyRow key={company.companyId} company={company} openKeys={openKeys}
+                onToggle={toggleKey} isCompleteTab={isCompleteTab} selectedIds={selectedRoundIds}
+                onSelect={handleSelect} onPreview={setPreviewTarget} activeTab={activeTab} />
+            ))
           )}
         </div>
+
+        {/* 제작완료 탭 하단 발송 바 */}
+        {isCompleteTab && (
+          <div className="flex-shrink-0 border-t border-gray-200 pt-3 flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                onChange={e => handleSelectAll(e.target.checked)} className="w-4 h-4 accent-[#55A4DA]" />
+              <span className="text-sm text-gray-500">전체선택</span>
+            </label>
+            {selectedRoundIds.size > 0 && (
+              <span className="text-sm text-gray-400">{selectedRoundIds.size}개 선택됨</span>
+            )}
+            <button disabled={selectedRoundIds.size === 0} onClick={() => setSendConfirmOpen(true)}
+              className={`ml-auto flex items-center gap-2 text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors ${selectedRoundIds.size > 0 ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              선택 발송{selectedRoundIds.size > 0 ? ` (${selectedRoundIds.size})` : ''}
+            </button>
+          </div>
+        )}
       </div>
+
+      {previewTarget && <PreviewModal target={previewTarget} onClose={() => setPreviewTarget(null)} />}
+      {sendConfirmOpen && <SendConfirmModal count={selectedRoundIds.size} onConfirm={handleSendConfirm} onClose={() => setSendConfirmOpen(false)} />}
     </div>
   );
 }

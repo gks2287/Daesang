@@ -402,6 +402,13 @@ function ConfigureContent() {
       leadershipType,
       status,
       stepCount: customStoryline.length,
+      positiveLeaders: { types: [], count: 0 },
+      negativeLeaders: { types: [leadershipType], count: 0 },
+      totalRounds: customStoryline.length,
+      completedRounds: status === '제작완료' ? customStoryline.length : 0,
+      type: 'general',
+      leaderType: 'negative',
+      totalLeaders: 0,
     });
     configDraft.resetDraft();
     router.push(`/admin/newsletters?tab=${encodeURIComponent(status)}`);
