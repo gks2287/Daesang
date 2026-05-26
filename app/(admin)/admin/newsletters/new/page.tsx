@@ -127,7 +127,7 @@ export default function NewNewsletterPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-3 flex items-center gap-2 flex-shrink-0">
         {[
           { n: 1, label: '기업 선택', done: step1Done, active: false },
-          { n: 2, label: '유형 선택', done: step2Done, active: step1Done && !step2Done },
+          { n: 2, label: '리더십 유형 선택', done: step2Done, active: step1Done && !step2Done },
           { n: 3, label: '리더 선택', done: step3Done, active: step2Done && !step3Done },
         ].map((s, i) => (
           <div key={s.n} className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export default function NewNewsletterPage() {
         {/* ── 2. 대상 유형 설정 ── */}
         <div className={`w-[280px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col transition-opacity ${step1Done ? '' : 'opacity-40 pointer-events-none'}`}>
           <div className="px-4 py-3 border-b border-gray-100">
-            <p className="text-xs font-bold text-gray-800">유형 선택</p>
+            <p className="text-xs font-bold text-gray-800">리더십 유형 선택</p>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-4">
             {/* 긍정적 리더십 유형 */}
