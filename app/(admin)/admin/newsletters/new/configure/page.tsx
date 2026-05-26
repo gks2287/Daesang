@@ -1313,20 +1313,6 @@ function ConfigureContent() {
               );
             })()}
 
-            {/* ④ 생성 완료 */}
-            <div className="pb-6">
-              <button
-                onClick={handleComplete}
-                disabled={!deliveryInterval || !startDate}
-                className={`w-full py-3.5 text-sm font-bold rounded-xl transition-colors shadow-sm ${
-                  deliveryInterval && startDate
-                    ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                생성 완료
-              </button>
-            </div>
 
           </div>
         </div>
@@ -1896,6 +1882,22 @@ function ConfigureContent() {
             }`}
           >
             다음
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
+        {wizardStep === 4 && (
+          <button
+            onClick={handleComplete}
+            disabled={!deliveryInterval || !startDate}
+            className={`flex items-center gap-1.5 text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors ${
+              deliveryInterval && startDate
+                ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            생성 완료
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
