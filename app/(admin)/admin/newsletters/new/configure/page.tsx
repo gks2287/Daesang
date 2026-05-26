@@ -24,29 +24,12 @@ const DELIVERY_INTERVAL_OPTIONS: Array<{ value: DeliveryInterval; label: string;
   { value: 'quarterly',  label: '분기',   days: 90,  desc: '90일마다' },
   { value: 'semiannual', label: '반기',   days: 180, desc: '180일마다' },
 ];
-const DIST_PRIORITY = [2, 3, 1, 0];
-
 const WIZARD_STEPS: Array<{ n: WizardStep; label: string }> = [
   { n: 1, label: '스토리라인' },
   { n: 2, label: '회차 설계' },
   { n: 3, label: '콘텐츠 구성' },
   { n: 4, label: '발송 주기' },
 ];
-
-function calcDistribution(total: number, stepCount: number): { stepIndex: number; count: number }[] {
-  const dist = Array.from({ length: stepCount }, (_, i) => ({ stepIndex: i, count: 1 }));
-  let extras = total - stepCount;
-  if (extras <= 0) return dist;
-  const pool = DIST_PRIORITY.filter(i => i < stepCount && i !== 4);
-  if (pool.length === 0) return dist;
-  let pi = 0;
-  while (extras > 0) {
-    dist[pool[pi % pool.length]].count++;
-    extras--;
-    pi++;
-  }
-  return dist;
-}
 
 function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]): Round[] {
   const sorted = [...dist].sort((a, b) => a.stepIndex - b.stepIndex);
@@ -254,10 +237,6 @@ function ConfigureContent() {
   // ── 2단계: 회차 설계 함수 ──
   const distSum = roundDistribution.reduce((s, d) => s + d.count, 0);
 
-  function applyAIDistribution() {
-    setRoundDistribution(calcDistribution(totalRounds, customStoryline.length));
-  }
-
   function adjustCount(stepIdx: number, delta: number) {
     setRoundDistribution(prev =>
       prev.map(d => d.stepIndex === stepIdx ? { ...d, count: Math.max(0, d.count + delta) } : d)
@@ -268,7 +247,6 @@ function ConfigureContent() {
     const min = customStoryline.length;
     const next = Math.max(min, val);
     setTotalRounds(next);
-    setRoundDistribution(calcDistribution(next, customStoryline.length));
   }
 
   // ── 3단계: 주제 선정 함수 ──
@@ -657,18 +635,7 @@ function ConfigureContent() {
                         +
                       </button>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <p className="text-[11px] text-gray-400">최소 {customStoryline.length}회차</p>
-                      <button
-                        onClick={applyAIDistribution}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#55A4DA]/10 hover:bg-[#55A4DA]/20 text-[#55A4DA] text-xs font-bold transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        AI 자동 배분
-                      </button>
-                    </div>
+                    <p className="text-[11px] text-gray-400">최소 {customStoryline.length}회차</p>
                   </div>
                 </div>
 
