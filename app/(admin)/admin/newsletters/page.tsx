@@ -480,6 +480,12 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
   const totalCount = allRounds.length;
   const progressPct = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
 
+  const availableRoundNums = useMemo(() => {
+    const nums = new Set<number>();
+    allRounds.filter(r => r.status === 'completed').forEach(r => nums.add(r.round));
+    return Array.from(nums).sort((a, b) => a - b);
+  }, [allRounds]);
+
   if (!hasVisible) return null;
 
   return (
@@ -523,6 +529,25 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
             ))}
           </div>
 
+          {/* 회차별 전체선택 */}
+          {isCompleteTab && availableRoundNums.length > 0 && (
+            <div className="border-t border-gray-100 px-5 py-2.5 bg-gray-50/40 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400 font-medium flex-shrink-0">회차별 전체선택:</span>
+              {availableRoundNums.map(num => {
+                const isActive = selectedRoundNums.has(num);
+                return (
+                  <button key={num} onClick={() => onSelectRound(num, !isActive)}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+                      isActive
+                        ? 'bg-[#55A4DA] border-[#55A4DA] text-white'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA]'
+                    }`}>
+                    {num}회차
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
