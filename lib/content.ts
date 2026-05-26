@@ -7,7 +7,7 @@ export interface Round {
   stepIndex: number;
   topic: string;
   contents: ContentPoolItem[];
-  interactions: ('quiz' | 'simulation')[];
+  interactions: ('quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont')[];
   surveys: ('always' | 'periodic')[];
 }
 

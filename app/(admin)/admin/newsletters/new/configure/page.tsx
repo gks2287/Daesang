@@ -31,6 +31,16 @@ const WIZARD_STEPS: Array<{ n: WizardStep; label: string }> = [
   { n: 4, label: '발송 주기' },
 ];
 
+const POSITIVE_LEADERSHIP_TYPES = new Set(['코칭형', '민주형', '서번트형', '비전형', '관계중심형']);
+
+const INTERACTION_LABELS: Record<string, string> = {
+  quiz: '퀴즈',
+  scenario: '선택형 시나리오',
+  selfcheck: '셀프 진단/체크리스트',
+  reflection: '회고 질문',
+  dodont: 'Do & Don\'t 리스트',
+};
+
 function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]): Round[] {
   const sorted = [...dist].sort((a, b) => a.stepIndex - b.stepIndex);
   let id = 1;
@@ -96,6 +106,7 @@ function ConfigureContent() {
     : [];
   const targetCompanies = companies.filter(c => companyIdList.includes(c.id));
   const leadershipTypes = typesParam ? typesParam.split(',').filter(Boolean) : [];
+  const isAllPositive = leadershipTypes.length > 0 && leadershipTypes.every(t => POSITIVE_LEADERSHIP_TYPES.has(t));
 
   const configDraft = useNewNewsletterDraftStore();
   const allParticipants = useParticipantStore(s => s.participants);
@@ -135,6 +146,10 @@ function ConfigureContent() {
 
   // 아코디언 열림 상태 (1=주제선정, 2=콘텐츠, 3=인터랙션, 4=만족도)
   const [openSections, setOpenSections] = useState<Set<number>>(new Set([1]));
+
+  // 뉴스레터 유형 선택 (0번 섹션, 뉴스레터 전체 적용)
+  const [selectedNewsletterType, setSelectedNewsletterType] = useState<'일반형' | '맞춤형' | null>(null);
+  const [typeOpen, setTypeOpen] = useState(true);
 
   // 콘텐츠 풀
   const [contentPoolOpen, setContentPoolOpen] = useState(false);
@@ -281,7 +296,7 @@ function ConfigureContent() {
     setRounds(prev => prev.map((r, i) => i === roundIdx ? { ...r, topic } : r));
   }
 
-  function toggleInteraction(roundIdx: number, val: 'quiz' | 'simulation') {
+  function toggleInteraction(roundIdx: number, val: 'quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont') {
     setRounds(prev =>
       prev.map((r, i) => {
         if (i !== roundIdx) return r;
@@ -440,7 +455,7 @@ function ConfigureContent() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
           <Link href="/admin/newsletters/new" className="hover:text-gray-700 hover:underline transition-colors">
-            새로 만들기
+            대상 설정
           </Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -823,6 +838,82 @@ function ConfigureContent() {
                     </div>
                   </div>
 
+                  {/* ⓪ 뉴스레터 유형 선택 */}
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => setTypeOpen(prev => !prev)}
+                      className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">0</span>
+                      <p className="text-sm font-bold text-gray-800 flex-1 text-left">뉴스레터 유형</p>
+                      {isAllPositive ? (
+                        <span className="text-[11px] font-semibold text-gray-400 flex-shrink-0">일반형 자동 적용</span>
+                      ) : selectedNewsletterType ? (
+                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{selectedNewsletterType}</span>
+                      ) : (
+                        <span className="text-[11px] text-red-400 flex-shrink-0">필수</span>
+                      )}
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${typeOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    <div className={`grid transition-all duration-200 ${typeOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                      <div className="overflow-hidden">
+                        <div className="border-t border-gray-100 p-5">
+                          {isAllPositive ? (
+                            <div className="space-y-2">
+                              <p className="text-xs text-gray-400 mb-3">긍정적 리더십 유형은 일반형으로 발송됩니다.</p>
+                              <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
+                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center flex-shrink-0 bg-gray-200">
+                                  <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-500">일반형</p>
+                                  <p className="text-[11px] text-gray-400">모든 리더에게 공통으로 발송되는 내용</p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-xs text-gray-400 mb-3">이 뉴스레터의 발송 유형을 선택하세요.</p>
+                              {([
+                                { val: '일반형' as const, desc: '모든 리더에게 공통으로 발송되는 내용' },
+                                { val: '맞춤형' as const, desc: '해당 리더십 유형에게만 맞춤화된 내용' },
+                              ]).map(({ val, desc }) => {
+                                const checked = selectedNewsletterType === val;
+                                return (
+                                  <button
+                                    key={val}
+                                    onClick={() => setSelectedNewsletterType(val)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 transition-all text-left ${
+                                      checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                      checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
+                                    }`}>
+                                      {checked && (
+                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{val}</p>
+                                      <p className="text-[11px] text-gray-400">{desc}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* ① 주제 선정 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button
@@ -1008,7 +1099,7 @@ function ConfigureContent() {
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
                       {r.interactions.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
-                          {r.interactions.map(v => v === 'quiz' ? '퀴즈' : '시뮬레이션').join(' · ')}
+                          {r.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}
                         </span>
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
@@ -1020,10 +1111,13 @@ function ConfigureContent() {
                     <div className={`grid transition-all duration-200 ${openSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-5 space-y-2">
-                          <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요.</p>
+                          <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요. 복수 선택 가능합니다.</p>
                           {([
                             { val: 'quiz' as const, label: '퀴즈', desc: '학습 내용 확인 퀴즈' },
-                            { val: 'simulation' as const, label: '시뮬레이션', desc: '상황별 의사결정 시뮬레이션' },
+                            { val: 'scenario' as const, label: '선택형 시나리오', desc: '상황을 주고 A/B/C 중 선택하면 유형별 피드백을 주는 인터랙션' },
+                            { val: 'selfcheck' as const, label: '셀프 진단/체크리스트', desc: '정답 없이 스스로를 점검하는 체크리스트 (예: 나는 팀원 의견을 충분히 듣는가?)' },
+                            { val: 'reflection' as const, label: '회고 질문', desc: '성찰을 유도하는 열린 질문 (예: 이번 주 바꾸고 싶은 내 행동은?)' },
+                            { val: 'dodont' as const, label: 'Do & Don\'t 리스트', desc: '해야 할 것과 하지 말아야 할 것을 명확하게 정리한 실천 가이드' },
                           ]).map(({ val, label, desc }) => {
                             const checked = r.interactions.includes(val);
                             return (
@@ -1611,7 +1705,7 @@ function ConfigureContent() {
                                         <span className="text-[11px] text-gray-400">콘텐츠 {r.contents.length}개</span>
                                         {r.interactions.length > 0 && (
                                           <span className="text-[11px] text-[#55A4DA]">
-                                            {r.interactions.map(v => v === 'quiz' ? '퀴즈' : '시뮬레이션').join(' · ')}
+                                            {r.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}
                                           </span>
                                         )}
                                         {r.surveys.length > 0 && (
@@ -1713,7 +1807,7 @@ function ConfigureContent() {
                           ) : (
                             <ul className="space-y-0.5">
                               {activeRound.interactions.map(v => (
-                                <li key={v} className="text-xs text-gray-600">· {v === 'quiz' ? '퀴즈' : '시뮬레이션'}</li>
+                                <li key={v} className="text-xs text-gray-600">· {INTERACTION_LABELS[v] ?? v}</li>
                               ))}
                             </ul>
                           )}
