@@ -480,22 +480,6 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
   const totalCount = allRounds.length;
   const progressPct = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
 
-  // 발송 가능한 회차 목록 (완료 회차가 1개 이상인 회차 번호)
-  const availableRounds = useMemo(() => {
-    const roundMap = new Map<number, string[]>();
-    company.groups.forEach(g => g.types.forEach(t =>
-      t.rounds.forEach(r => {
-        if (r.status === 'completed') {
-          if (!roundMap.has(r.round)) roundMap.set(r.round, []);
-          roundMap.get(r.round)!.push(t.typeName);
-        }
-      })
-    ));
-    return Array.from(roundMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([roundNum, types]) => ({ roundNum, types }));
-  }, [company.groups]);
-
   if (!hasVisible) return null;
 
   return (
@@ -539,28 +523,6 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
             ))}
           </div>
 
-          {/* 발송 회차 선택 (제작완료 탭에서만) */}
-          {isCompleteTab && availableRounds.length > 0 && (
-            <div className="border-t border-gray-200 px-5 py-4 bg-gray-50/30">
-              <p className="text-xs font-semibold text-gray-400 mb-2.5">발송할 회차 선택</p>
-              <div className="space-y-2">
-                {availableRounds.map(({ roundNum, types }) => (
-                  <label key={roundNum} className="flex items-center gap-2.5 cursor-pointer select-none group">
-                    <input
-                      type="checkbox"
-                      checked={selectedRoundNums.has(roundNum)}
-                      onChange={e => onSelectRound(roundNum, e.target.checked)}
-                      className="w-3.5 h-3.5 accent-[#55A4DA] flex-shrink-0"
-                    />
-                    <span className="text-xs font-semibold text-gray-600 w-10 flex-shrink-0">{roundNum}회차</span>
-                    <span className="text-xs text-gray-400 group-hover:text-gray-500 transition-colors">
-                      {types.join(' · ')}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
