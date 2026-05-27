@@ -3,9 +3,8 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestion } from '@/store/newNewsletterDraftStore';
-import type { StorylineStep } from '@/lib/storyline';
-import type { Round } from '@/lib/content';
+import { useNewNewsletterDraftStore } from '@/store/newNewsletterDraftStore';
+import { useCompanyStore } from '@/store/companyStore';
 
 // ── 타입 ─────────────────────────────────────────────────────────────
 type RoundStatus = 'inProgress' | 'completed';
@@ -234,32 +233,27 @@ function filterRounds(rounds: RoundData[], tab: TabType): RoundData[] {
   return rounds;
 }
 
-// ── 복구 팝업 타입 ────────────────────────────────────────────────────
-interface RecoveryDraftData {
-  savedAt: string;
-  companyNames: string[];
-  stepLabel: string;
-  kind: string;
-  companyIds: number[];
-  selectedTypes: string[];
-  selectedLeaders: number[];
-  wizardStep: number;
-  customStoryline: StorylineStep[];
-  totalRounds: number;
-  roundDistribution: { stepIndex: number; count: number }[];
-  rounds: Round[];
-  suggestions: DraftTopicSuggestion[];
-  deliveryInterval: string | null;
-  startDate: string;
+function formatRelativeTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 60) return `${Math.max(1, diffMin)}분 전`;
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  if (diffDay < 7) return `${diffDay}일 전`;
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}.${m}.${d}`;
 }
 
 // ── 복구 팝업 ─────────────────────────────────────────────────────────
-function RecoveryModal({ draft, onNew, onContinue }: {
-  draft: RecoveryDraftData; onNew: () => void; onContinue: () => void;
+function RecoveryModal({ companyNames, stepLabel, onNew, onContinue }: {
+  companyNames: string[]; stepLabel: string;
+  onNew: () => void; onContinue: () => void;
 }) {
-  const savedDate = new Date(draft.savedAt).toLocaleDateString('ko-KR', {
-    month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
@@ -272,10 +266,11 @@ function RecoveryModal({ draft, onNew, onContinue }: {
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-bold text-gray-800">작업 중인 내용이 있습니다</h3>
             <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-              <span className="font-semibold text-gray-700">{draft.companyNames.join(', ')}</span>의 뉴스레터를{' '}
-              <span className="font-semibold text-gray-700">{draft.stepLabel}</span> 중이었습니다.
+              <span className="font-semibold text-gray-700">
+                {companyNames.length > 0 ? companyNames.join(', ') : '작업 중인 기업'}
+              </span>의 뉴스레터를{' '}
+              <span className="font-semibold text-gray-700">{stepLabel}</span> 중이었습니다.
             </p>
-            <p className="text-[11px] text-gray-400 mt-1">{savedDate} 임시저장</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -590,7 +585,7 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
             <span className="text-[11px] text-gray-400">{progressPct}%</span>
           </div>
         </div>
-        <span className="text-xs text-gray-400 flex-shrink-0">{company.updatedAt}</span>
+        <span className="text-xs text-gray-400 flex-shrink-0">{formatRelativeTime(company.updatedAt)}</span>
         <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -639,10 +634,15 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
 function NewslettersContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const setDraft = useNewNewsletterDraftStore(s => s.setDraft);
   const resetDraft = useNewNewsletterDraftStore(s => s.resetDraft);
+  const draftCompanyIds = useNewNewsletterDraftStore(s => s.companyIds);
+  const draftWizardStep = useNewNewsletterDraftStore(s => s.wizardStep);
+  const companies = useCompanyStore(s => s.companies);
   const [activeTab, setActiveTab] = useState<TabType>('최근');
-  const [recoveryDraft, setRecoveryDraft] = useState<RecoveryDraftData | null>(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const hasDraft = draftCompanyIds.length > 0 || draftWizardStep > 1;
+  const draftCompanyNames = draftCompanyIds.map(id => companies.find(c => c.id === id)?.name ?? '').filter(Boolean);
+  const draftStepLabel = (['', '스토리라인 구성 중', '회차 설계 중', '콘텐츠 구성 중', '발송 주기 설정 중'] as const)[draftWizardStep] ?? '작업 중';
   const [search, setSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
@@ -658,31 +658,13 @@ function NewslettersContent() {
   function handleNewDraft() {
     localStorage.removeItem('newsletter_draft_saved');
     resetDraft();
-    setRecoveryDraft(null);
+    setShowRecovery(false);
     router.push('/admin/newsletters/new');
   }
 
   function handleContinueDraft() {
-    if (!recoveryDraft) return;
-    setDraft({
-      kind: (recoveryDraft.kind as '일반형' | '맞춤형') ?? null,
-      companyIds: recoveryDraft.companyIds ?? [],
-      selectedTypes: recoveryDraft.selectedTypes ?? [],
-      selectedLeaders: recoveryDraft.selectedLeaders ?? [],
-      wizardStep: (Math.min(Math.max(recoveryDraft.wizardStep ?? 1, 1), 4)) as 1 | 2 | 3 | 4,
-      customStoryline: recoveryDraft.customStoryline ?? [],
-      totalRounds: recoveryDraft.totalRounds ?? 0,
-      roundDistribution: recoveryDraft.roundDistribution ?? [],
-      rounds: recoveryDraft.rounds ?? [],
-      suggestions: recoveryDraft.suggestions ?? [],
-    });
-    const ids = (recoveryDraft.companyIds ?? []).join(',');
-    const types = (recoveryDraft.selectedTypes ?? []).join(',');
-    const leaders = (recoveryDraft.selectedLeaders ?? []).length;
-    router.push(
-      `/admin/newsletters/new/configure?kind=${encodeURIComponent(recoveryDraft.kind ?? '일반형')}&companyIds=${ids}&types=${encodeURIComponent(types)}&depts=&leaders=${leaders}`
-    );
-    setRecoveryDraft(null);
+    setShowRecovery(false);
+    router.push('/admin/newsletters/new/configure');
   }
 
   useEffect(() => {
@@ -778,11 +760,14 @@ function NewslettersContent() {
           onClick={() => {
             try {
               const saved = localStorage.getItem('newsletter_draft_saved');
-              if (saved) {
-                setRecoveryDraft(JSON.parse(saved) as RecoveryDraftData);
+              const savedByUser = saved ? (JSON.parse(saved) as { savedByUser?: boolean })?.savedByUser : false;
+              if (hasDraft && !savedByUser) {
+                setShowRecovery(true);
                 return;
               }
             } catch {}
+            localStorage.removeItem('newsletter_draft_saved');
+            resetDraft();
             router.push('/admin/newsletters/new');
           }}
           className="w-full flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group text-left"
@@ -824,6 +809,13 @@ function NewslettersContent() {
             {MOCK_COMPANIES.map(c => <option key={c.companyId} value={c.companyName}>{c.companyName}</option>)}
           </select>
         </div>
+
+        {/* 최근 탭 카운트 헤더 */}
+        {activeTab === '최근' && filteredCompanies.length > 0 && (
+          <p className="text-xs text-gray-400 font-medium mb-2 pl-1">
+            최근 수정한 뉴스레터 <span className="text-gray-600 font-semibold">{filteredCompanies.length}건</span>
+          </p>
+        )}
 
         {/* 드릴다운 목록 */}
         <div className="flex-1 overflow-y-auto pr-1">
@@ -872,8 +864,9 @@ function NewslettersContent() {
       {sendConfirmTarget && (
         <SendConfirmModal target={sendConfirmTarget} onConfirm={handleSendConfirm} onClose={() => setSendConfirmTarget(null)} />
       )}
-      {recoveryDraft && (
-        <RecoveryModal draft={recoveryDraft} onNew={handleNewDraft} onContinue={handleContinueDraft} />
+      {showRecovery && (
+        <RecoveryModal companyNames={draftCompanyNames} stepLabel={draftStepLabel}
+          onNew={handleNewDraft} onContinue={handleContinueDraft} />
       )}
     </div>
   );

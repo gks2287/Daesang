@@ -77,6 +77,14 @@ export default function NewNewsletterPage() {
     setSelectedLeaders(filteredLeaders.map(p => p.id));
   }, [filteredLeaders]);
 
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  function handleCancel() {
+    localStorage.removeItem('newsletter_draft_saved');
+    draft.resetDraft();
+    router.push('/admin/newsletters');
+  }
+
   const step1Done = companyIds.length > 0;
   const step2Done = selectedTypes.length > 0;
   const step3Done = selectedLeaders.length > 0;
@@ -102,8 +110,8 @@ export default function NewNewsletterPage() {
           <span className="text-gray-800 font-bold">새로 만들기</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => router.push('/admin/newsletters')}
-            className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+          <button onClick={() => setShowCancelConfirm(true)}
+            className="text-sm font-medium text-gray-400 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">나가기</button>
           <button
             onClick={() => {
               const params = new URLSearchParams({
@@ -297,6 +305,36 @@ export default function NewNewsletterPage() {
               })
             )}
           </div>
+        </div>
+      </div>
+      {showCancelConfirm && (
+        <CancelConfirmModal onKeep={() => setShowCancelConfirm(false)} onCancel={handleCancel} />
+      )}
+    </div>
+  );
+}
+
+function CancelConfirmModal({ onKeep, onCancel }: { onKeep: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+        <div>
+          <h3 className="text-sm font-bold text-gray-800">저장하지 않고 나가시겠습니까?</h3>
+          <p className="text-xs text-gray-500 mt-2 leading-relaxed">작업 내용이 사라집니다.</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onKeep}
+            className="flex-1 px-4 py-2 text-sm font-semibold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors"
+          >
+            계속 작업
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            나가기
+          </button>
         </div>
       </div>
     </div>

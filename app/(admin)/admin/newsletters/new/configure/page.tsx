@@ -113,6 +113,14 @@ function ConfigureContent() {
   const allParticipants = useParticipantStore(s => s.participants);
   const selectedParticipants = allParticipants.filter(p => configDraft.selectedLeaders.includes(p.id));
 
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  function handleCancel() {
+    localStorage.removeItem('newsletter_draft_saved');
+    configDraft.resetDraft();
+    router.push('/admin/newsletters');
+  }
+
   // ── 위저드 단계 ──
   const [wizardStep, setWizardStep] = useState<WizardStep>(
     Math.min(configDraft.wizardStep, 4) as WizardStep
@@ -163,8 +171,9 @@ function ConfigureContent() {
   const [deliveryInterval, setDeliveryInterval] = useState<DeliveryInterval | null>(null);
   const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
 
-  // ── 임시저장 토스트 ──
+  // ── 저장/임시저장 토스트 ──
   const [showDraftToast, setShowDraftToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('임시저장 완료');
 
   // ── 미리보기 모달 ──
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -411,28 +420,39 @@ function ConfigureContent() {
     router.push(`/admin/newsletters?tab=${encodeURIComponent(status)}`);
   }
 
+  function handleSaveInPlace() {
+    localStorage.setItem('newsletter_draft_saved', JSON.stringify({ savedByUser: true }));
+    setToastMessage('저장되었습니다');
+    setShowDraftToast(true);
+    setTimeout(() => setShowDraftToast(false), 1500);
+  }
+
   function handleDraftSave() {
-    const STEP_LABELS: Record<WizardStep, string> = {
-      1: '스토리라인 구성 중', 2: '회차 설계 중', 3: '콘텐츠 구성 중', 4: '발송 주기 설정 중',
-    };
-    const data = {
-      savedAt: new Date().toISOString(),
-      companyNames: targetCompanies.map(c => c.name),
-      stepLabel: STEP_LABELS[wizardStep],
-      kind,
-      companyIds: companyIdList,
-      selectedTypes: leadershipTypes,
-      selectedLeaders: configDraft.selectedLeaders,
-      wizardStep,
-      customStoryline,
-      totalRounds,
-      roundDistribution,
-      rounds,
-      suggestions,
-      deliveryInterval,
-      startDate,
-    };
-    localStorage.setItem('newsletter_draft_saved', JSON.stringify(data));
+    // savedByUser 플래그 저장 → 복구 팝업 억제용
+    localStorage.setItem('newsletter_draft_saved', JSON.stringify({ savedByUser: true }));
+    // mock 뉴스레터 목록에 추가
+    const company = targetCompanies[0];
+    const leadershipType = leadershipTypes.length > 0
+      ? leadershipTypes[0]
+      : deptsParam ? '부서별' : '미지정';
+    addNewsletter({
+      title: `${company?.name ?? '미지정'} ${leadershipType} 리더십 코칭`.trim(),
+      companyId: company?.id ?? 0,
+      companyName: company?.name ?? '미지정',
+      leadershipType,
+      status: '제작 중',
+      stepCount: customStoryline.length,
+      positiveLeaders: { types: [], count: 0 },
+      negativeLeaders: { types: [leadershipType], count: 0 },
+      totalRounds: customStoryline.length,
+      completedRounds: 0,
+      type: 'general',
+      leaderType: 'negative',
+      totalLeaders: 0,
+    });
+    // sessionStorage(Zustand) 클리어 → 이후 새로 만들기 시 팝업 안 뜸
+    configDraft.resetDraft();
+    setToastMessage('임시저장 완료');
     setShowDraftToast(true);
     setTimeout(() => {
       setShowDraftToast(false);
@@ -497,14 +517,20 @@ function ConfigureContent() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => router.push('/admin/newsletters')}
-            className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+            onClick={() => setShowCancelConfirm(true)}
+            className="text-sm font-medium text-gray-400 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            취소
+            나가기
+          </button>
+          <button
+            onClick={handleSaveInPlace}
+            className="text-sm font-medium border border-[#55A4DA] text-[#55A4DA] px-4 py-1.5 rounded-lg hover:bg-[#55A4DA]/5 transition-colors"
+          >
+            저장
           </button>
           <button
             onClick={handleDraftSave}
-            className="text-sm font-medium text-gray-700 border border-gray-200 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+            className="text-sm font-medium bg-[#55A4DA] hover:bg-[#3A8BC4] text-white px-4 py-1.5 rounded-lg transition-colors"
           >
             임시저장
           </button>
@@ -1907,12 +1933,37 @@ function ConfigureContent() {
       })()}
 
       {/* ── 임시저장 토스트 ── */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+            <div>
+              <h3 className="text-sm font-bold text-gray-800">저장하지 않고 나가시겠습니까?</h3>
+              <p className="text-xs text-gray-500 mt-2 leading-relaxed">작업 내용이 사라집니다.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 px-4 py-2 text-sm font-semibold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors"
+              >
+                계속 작업
+              </button>
+              <button
+                onClick={handleCancel}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDraftToast && (
         <div className="fixed top-4 right-4 z-[100] bg-gray-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
           <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
           </svg>
-          임시저장 완료
+          {toastMessage}
         </div>
       )}
 
