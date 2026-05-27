@@ -107,6 +107,7 @@ function ConfigureContent() {
   const targetCompanies = companies.filter(c => companyIdList.includes(c.id));
   const leadershipTypes = typesParam ? typesParam.split(',').filter(Boolean) : [];
   const isAllPositive = leadershipTypes.length > 0 && leadershipTypes.every(t => POSITIVE_LEADERSHIP_TYPES.has(t));
+  const isMixed = leadershipTypes.some(t => POSITIVE_LEADERSHIP_TYPES.has(t)) && leadershipTypes.some(t => !POSITIVE_LEADERSHIP_TYPES.has(t));
 
   const configDraft = useNewNewsletterDraftStore();
   const allParticipants = useParticipantStore(s => s.participants);
@@ -145,7 +146,7 @@ function ConfigureContent() {
   const [topicError, setTopicError] = useState<string | null>(null);
 
   // 아코디언 열림 상태 (1=주제선정, 2=콘텐츠, 3=인터랙션, 4=만족도)
-  const [openSections, setOpenSections] = useState<Set<number>>(new Set([1]));
+  const [openSections, setOpenSections] = useState<Set<number>>(new Set([2]));
 
   // 뉴스레터 유형 선택 (0번 섹션, 뉴스레터 전체 적용)
   const [selectedNewsletterType, setSelectedNewsletterType] = useState<'일반형' | '맞춤형' | null>(null);
@@ -178,7 +179,7 @@ function ConfigureContent() {
 
   // 회차 전환 시 ①만 열린 상태로 리셋
   useEffect(() => {
-    setOpenSections(new Set([1]));
+    setOpenSections(new Set([2]));
   }, [activeRoundIdx]);
 
   function toggleSection(n: number) {
@@ -844,7 +845,7 @@ function ConfigureContent() {
                       onClick={() => setTypeOpen(prev => !prev)}
                       className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">0</span>
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">1</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">뉴스레터 유형</p>
                       {isAllPositive ? (
                         <span className="text-[11px] font-semibold text-gray-400 flex-shrink-0">일반형 자동 적용</span>
@@ -907,6 +908,16 @@ function ConfigureContent() {
                                   </button>
                                 );
                               })}
+                              {isMixed && selectedNewsletterType === '맞춤형' && (
+                                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3">
+                                  <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <p className="text-xs text-amber-700 leading-relaxed">
+                                    맞춤형은 부정적 리더십 유형에게만 적용됩니다. 긍정적 리더십 유형은 일반형으로 발송됩니다.
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -917,10 +928,10 @@ function ConfigureContent() {
                   {/* ① 주제 선정 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button
-                      onClick={() => toggleSection(1)}
+                      onClick={() => toggleSection(2)}
                       className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">1</span>
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
                       {r.topic.trim() ? (
                         <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -929,11 +940,11 @@ function ConfigureContent() {
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">필수</span>
                       )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(1) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(2) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(1) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className={`grid transition-all duration-200 ${openSections.has(2) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-5 space-y-4">
                           <div className="flex items-center justify-between">
@@ -1020,10 +1031,10 @@ function ConfigureContent() {
                   {/* ② 콘텐츠 선택 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <div
-                      onClick={() => toggleSection(2)}
+                      onClick={() => toggleSection(3)}
                       className="px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
                     >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
                       <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
                       {r.contents.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.contents.length}개 선택됨</span>
@@ -1039,11 +1050,11 @@ function ConfigureContent() {
                         </svg>
                         콘텐츠 풀
                       </button>
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(2) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(3) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </div>
-                    <div className={`grid transition-all duration-200 ${openSections.has(2) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className={`grid transition-all duration-200 ${openSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-4">
                           {r.contents.length === 0 ? (
@@ -1092,10 +1103,10 @@ function ConfigureContent() {
                   {/* ③ 인터랙션 요소 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button
-                      onClick={() => toggleSection(3)}
+                      onClick={() => toggleSection(4)}
                       className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
                       {r.interactions.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
@@ -1104,11 +1115,11 @@ function ConfigureContent() {
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
                       )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(3) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(4) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className={`grid transition-all duration-200 ${openSections.has(4) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-5 space-y-2">
                           <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요. 복수 선택 가능합니다.</p>
@@ -1152,10 +1163,10 @@ function ConfigureContent() {
                   {/* ④ 만족도 조사 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button
-                      onClick={() => toggleSection(4)}
+                      onClick={() => toggleSection(5)}
                       className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
                     >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
+                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
                       {r.surveys.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
@@ -1164,11 +1175,11 @@ function ConfigureContent() {
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
                       )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(4) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(5) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(4) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className={`grid transition-all duration-200 ${openSections.has(5) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-5 space-y-2">
                           <p className="text-xs text-gray-400 mb-3">이 회차에 포함할 만족도 조사를 선택하세요. 중복 선택 가능합니다.</p>
