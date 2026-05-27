@@ -157,10 +157,10 @@ export default function NewNewsletterPage() {
       </div>
 
       {/* 본문: 좌→우 3컬럼 */}
-      <div className="flex-1 flex overflow-hidden bg-gray-50">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-gray-50">
 
         {/* ── 1. 기업 선택 ── */}
-        <div className="w-[240px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+        <div className="w-full h-[180px] md:h-auto md:w-[200px] xl:w-[240px] flex-shrink-0 border-b border-gray-200 md:border-b-0 md:border-r bg-white flex flex-col">
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-xs font-bold text-gray-800">기업 선택</p>
           </div>
@@ -197,7 +197,7 @@ export default function NewNewsletterPage() {
         </div>
 
         {/* ── 2. 대상 유형 설정 ── */}
-        <div className={`w-[280px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col transition-opacity ${step1Done ? '' : 'opacity-40 pointer-events-none'}`}>
+        <div className={`w-full h-[220px] md:h-auto md:w-[200px] xl:w-[280px] flex-shrink-0 border-b border-gray-200 md:border-b-0 md:border-r bg-white flex flex-col transition-opacity ${step1Done ? '' : 'opacity-40 pointer-events-none'}`}>
           <div className="px-4 py-3 border-b border-gray-100">
             <p className="text-xs font-bold text-gray-800">리더십 유형 선택</p>
           </div>
@@ -265,11 +265,12 @@ export default function NewNewsletterPage() {
           </div>
 
           {/* 컬럼 헤더 */}
-          <div className="grid grid-cols-[28px_2fr_1.2fr_1fr_1.2fr] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-200">
+          <div className="grid grid-cols-[28px_1fr_1fr] lg:grid-cols-[28px_2fr_1.2fr_1fr_1.2fr] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-200">
             <span />
-            {['이름', '부서', '직책', '리더십 유형'].map(h => (
-              <p key={h} className="text-[11px] font-semibold text-gray-400">{h}</p>
-            ))}
+            <p className="text-[11px] font-semibold text-gray-400">이름</p>
+            <p className="hidden lg:block text-[11px] font-semibold text-gray-400">부서</p>
+            <p className="hidden lg:block text-[11px] font-semibold text-gray-400">직책</p>
+            <p className="text-[11px] font-semibold text-gray-400">리더십 유형</p>
           </div>
 
           {/* 리스트 */}
@@ -284,11 +285,11 @@ export default function NewNewsletterPage() {
                 const lc = leadershipColor[p.leadershipType] ?? 'bg-gray-100 text-gray-500';
                 return (
                   <button key={p.id} onClick={() => toggleLeader(p.id)}
-                    className={`w-full grid grid-cols-[28px_2fr_1.2fr_1fr_1.2fr] gap-3 px-5 py-3 items-center text-left transition-colors ${
+                    className={`w-full grid grid-cols-[28px_1fr_1fr] lg:grid-cols-[28px_2fr_1.2fr_1fr_1.2fr] gap-3 px-5 py-3 items-center text-left transition-colors ${
                       checked ? 'bg-[#55A4DA]/5' : 'hover:bg-gray-50'
                     }`}>
                     <Checkbox checked={checked} />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-[#55A4DA] text-[10px] font-bold">{p.name[0]}</span>
                       </div>
@@ -297,8 +298,8 @@ export default function NewNewsletterPage() {
                         <p className="text-[11px] text-gray-400 truncate">{p.email}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-600 truncate">{p.department}</p>
-                    <p className="text-xs text-gray-600">{p.position}</p>
+                    <p className="hidden lg:block text-xs text-gray-600 truncate">{p.department}</p>
+                    <p className="hidden lg:block text-xs text-gray-600">{p.position}</p>
                     <span className={`inline-flex w-fit text-[11px] font-semibold px-2 py-0.5 rounded-full ${lc}`}>{p.leadershipType}</span>
                   </button>
                 );
