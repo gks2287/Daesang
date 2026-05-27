@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type LeadershipType, type DeliveryStatus } from '@/store/participantStore';
 import { useDiagnosisHistoryStore } from '@/store/diagnosisHistoryStore';
@@ -36,26 +36,27 @@ const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: str
 const MOCK_STEPS = [
   { step: 1, title: '자기인식: 나의 리더십 패턴', sentAt: '2026-04-21', openedAt: '2026-04-22', interactionRate: 90, completed: true },
   { step: 2, title: '팀원의 시선: 360° 피드백 이해', sentAt: '2026-04-28', openedAt: '2026-04-29', interactionRate: 75, completed: true },
-  { step: 3, title: '소통의 재발견: 경청과 공감', sentAt: '2026-05-05', openedAt: '2026-05-07', interactionRate: 60, completed: true },
-  { step: 4, title: '갈등 관리와 심리적 안전감', sentAt: '2026-05-12', openedAt: null, interactionRate: 0, completed: false },
+  { step: 3, title: '갈등 관리와 심리적 안전감', sentAt: '2026-05-12', openedAt: null, interactionRate: 0, completed: false },
+  { step: 4, title: '변화를 이끄는 리더: 신뢰와 동기부여', sentAt: null, openedAt: null, interactionRate: 0, completed: false },
   { step: 5, title: '성장 지원: 코칭형 리더십', sentAt: null, openedAt: null, interactionRate: 0, completed: false },
-  { step: 6, title: '변화 실천 계획 수립', sentAt: null, openedAt: null, interactionRate: 0, completed: false },
 ];
 
 // 목 활동 로그
 const MOCK_LOGS = [
-  { date: '2026-05-07 14:32', action: '뉴스레터 열람', detail: 'Step 3 — 소통의 재발견', type: 'open' },
-  { date: '2026-05-07 14:45', action: '성찰 질문 제출', detail: '"나는 팀원의 말을 얼마나 끝까지 듣는가?"', type: 'interact' },
-  { date: '2026-05-07 14:50', action: '체크리스트 완료', detail: '경청 실천 3가지 항목 체크', type: 'interact' },
-  { date: '2026-04-29 09:15', action: '뉴스레터 열람', detail: 'Step 2 — 팀원의 시선', type: 'open' },
-  { date: '2026-04-29 09:28', action: '퀴즈 응답', detail: '4/5문항 정답', type: 'interact' },
-  { date: '2026-04-22 11:03', action: '뉴스레터 열람', detail: 'Step 1 — 자기인식', type: 'open' },
-  { date: '2026-04-22 11:20', action: '성찰 질문 제출', detail: '"내가 가장 자주 사용하는 리더십 패턴은?"', type: 'interact' },
+  { date: '2026-05-07 14:32', action: '뉴스레터 열람', detail: 'Step 3 — 소통의 재발견', type: 'open', response: null },
+  { date: '2026-05-07 14:45', action: '성찰 질문 제출', detail: '"나는 팀원의 말을 얼마나 끝까지 듣는가?"', type: 'interact', response: '솔직히 말하면 팀원이 말할 때 이미 내 답을 생각하고 있을 때가 많습니다. 앞으로는 말이 끝날 때까지 기다리고, 요약해서 확인하는 습관을 들이겠습니다.' },
+  { date: '2026-05-07 14:50', action: '체크리스트 완료', detail: '경청 실천 3가지 항목 체크', type: 'interact', response: '✅ 회의 중 핸드폰 내려놓기\n✅ 팀원 발언 도중 끼어들지 않기\n☐ 발언 후 요약 확인하기' },
+  { date: '2026-05-07 15:10', action: '상시설문 완료', detail: '뉴스레터 만족도 설문 제출', type: 'survey', response: { checks: ['콘텐츠 내용이 실무에 도움이 됐다', '읽기 쉽고 구성이 명확했다', '다음 회차도 받고 싶다'], unchecked: ['분량이 적당했다'], text: '내용 자체는 좋았는데 텍스트 위주라 읽다가 중간에 집중력이 떨어졌습니다. 짧은 영상이나 인포그래픽 같은 게 중간에 있으면 더 좋을 것 같아요.' } },
+  { date: '2026-04-29 09:15', action: '뉴스레터 열람', detail: 'Step 2 — 팀원의 시선', type: 'open', response: null },
+  { date: '2026-04-29 09:28', action: '퀴즈 응답', detail: '4/5문항 정답', type: 'interact', response: '1번 ✅  2번 ✅  3번 ✅  4번 ❌  5번 ✅\n오답: 피드백 전달 시 적절한 타이밍에 관한 문항' },
+  { date: '2026-04-22 11:03', action: '뉴스레터 열람', detail: 'Step 1 — 자기인식', type: 'open', response: null },
+  { date: '2026-04-22 11:20', action: '성찰 질문 제출', detail: '"내가 가장 자주 사용하는 리더십 패턴은?"', type: 'interact', response: '저는 결과 중심으로 생각하다 보니 과정보다 성과를 우선시하는 경향이 있습니다. 팀원들이 왜 힘들어하는지 좀 더 들여다볼 필요가 있다고 느꼈습니다.' },
 ];
 
 const logIcon = {
   open:     { bg: 'bg-blue-50',    icon: 'text-blue-500' },
   interact: { bg: 'bg-purple-50',  icon: 'text-purple-500' },
+  survey:   { bg: 'bg-gray-200',   icon: 'text-gray-600' },
 };
 
 export default function ParticipantDetailPage() {
@@ -83,6 +84,7 @@ export default function ParticipantDetailPage() {
   const leaderColor = leadershipColor[participant.leadershipType];
   const leaderInfo = leadershipDesc[participant.leadershipType];
   const progressPct = Math.round((participant.stepCurrent / participant.stepTotal) * 100);
+  const [expandedLog, setExpandedLog] = useState<number | null>(null);
 
   // 실제 데이터에 맞게 스텝 완료 수 계산
   const completedSteps = MOCK_STEPS.filter(s => s.completed).length;
@@ -93,11 +95,7 @@ export default function ParticipantDetailPage() {
       {/* 상단 토퍼 */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
-          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">리더십 코칭 관리</Link>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">고객사 현황</Link>
+          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">리더목록</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
@@ -109,9 +107,6 @@ export default function ParticipantDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="text-sm font-medium text-gray-600 border border-gray-200 px-4 py-1.5 rounded-lg hover:border-gray-300 hover:bg-gray-50 transition-colors">
-            뉴스레터 발송
-          </button>
           <button className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-1.5 rounded-lg transition-colors">
             정보 수정
           </button>
@@ -133,9 +128,6 @@ export default function ParticipantDetailPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold text-gray-900">{participant.name}</h1>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${leaderColor}`}>
-                  {participant.leadershipType}
-                </span>
                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${badge.bg} ${badge.text}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
                   {participant.deliveryStatus}
@@ -159,89 +151,61 @@ export default function ParticipantDetailPage() {
           {/* 구분선 */}
           <div className="border-t border-gray-100 my-5" />
 
+          {/* 리더십 진단 결과 + 코칭 방향 */}
+          <div className="flex gap-4 mb-5">
+            <div className={`flex-1 rounded-xl px-4 py-3 flex items-end gap-4 ${leaderColor.split(' ')[0]}`}>
+              <div className="flex-shrink-0">
+                <p className="text-xs font-semibold text-gray-500 mb-1">리더십 유형</p>
+                <p className={`text-xl font-bold ${leaderColor.split(' ')[1]}`}>{participant.leadershipType}</p>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo.summary}</p>
+            </div>
+            <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-xs font-semibold text-gray-500 mb-1">코칭 방향</p>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo.coaching}</p>
+            </div>
+          </div>
+
           {/* 통계 4개 */}
           <div className="grid grid-cols-4 gap-4">
             <StatCard
-              label="코칭 진행률"
-              value={`${progressPct}%`}
-              sub={`${participant.stepCurrent} / ${participant.stepTotal} 스텝`}
-              color="text-[#55A4DA]"
-            />
-            <StatCard
-              label="진단 회차"
+              label="뉴스레터 진척도"
               value={`${participant.assessmentRound}회차`}
+              suffix={`/ ${participant.stepTotal}회차`}
               sub="최근 완료 기준"
               color="text-gray-800"
+            />
+            <StatCard
+              label="스토리라인"
+              value={`${completedSteps}단계`}
+              suffix={`/ ${participant.stepTotal}단계`}
+              sub="완료 기준"
+              color="text-emerald-600"
+            />
+            <StatCard
+              label="평균 참여도"
+              value="68%"
+              sub="발송 기준"
+              color="text-gray-800"
+              percent={68}
             />
             <StatCard
               label="평균 인터랙션"
               value={`${Math.round(avgInteraction)}%`}
               sub="완료 스텝 기준"
               color="text-purple-600"
-            />
-            <StatCard
-              label="완료 스텝"
-              value={`${completedSteps}개`}
-              sub={`전체 ${participant.stepTotal}개`}
-              color="text-emerald-600"
+              percent={Math.round(avgInteraction)}
             />
           </div>
         </div>
 
-        {/* ── 중단: 리더십 진단 + 뉴스레터 스텝 ── */}
-        <div className="grid grid-cols-[1fr_1.6fr] gap-5">
+        {/* ── 중단: 뉴스레터 스토리라인 ── */}
+        <div className="grid grid-cols-1 gap-5">
 
-          {/* 리더십 진단 정보 */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4">
-            <h2 className="text-sm font-bold text-gray-800">리더십 진단 결과</h2>
-
-            <div className={`rounded-xl px-4 py-3 ${leaderColor.split(' ')[0]}`}>
-              <p className={`text-sm font-bold ${leaderColor.split(' ')[1]}`}>{participant.leadershipType}</p>
-              <p className="text-xs text-gray-600 mt-1 leading-relaxed">{leaderInfo.summary}</p>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1.5">코칭 방향</p>
-              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo.coaching}</p>
-            </div>
-
-            <div className="border-t border-gray-100 pt-4 space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">진단 회차</span>
-                <span className="font-semibold text-gray-700">{participant.assessmentRound}회차</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">코칭 캠페인</span>
-                <span className="font-semibold text-gray-700">2026 상반기</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">코칭 시작일</span>
-                <span className="font-semibold text-gray-700">2026-04-21</span>
-              </div>
-            </div>
-
-            {/* 진단 변경 히스토리 */}
-            {diagnosisHistory.length > 0 && (
-              <div className="border-t border-gray-100 pt-4 mt-4">
-                <p className="text-xs font-semibold text-gray-400 mb-2">진단 변경 이력</p>
-                <div className="space-y-2">
-                  {diagnosisHistory.map(h => (
-                    <div key={h.id} className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${leadershipColor[h.leadershipType]}`}>
-                        {h.leadershipType}
-                      </span>
-                      <span className="text-xs text-gray-400">{h.changedAt}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 뉴스레터 스텝 진행 현황 */}
+          {/* 뉴스레터 스토리라인 */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-gray-800">뉴스레터 스텝 진행 현황</h2>
+              <h2 className="text-sm font-bold text-gray-800">뉴스레터 스토리라인</h2>
               <div className="flex items-center gap-2">
                 <div className="w-24 bg-gray-100 rounded-full h-1.5">
                   <div
@@ -320,24 +284,74 @@ export default function ParticipantDetailPage() {
           <div className="space-y-2">
             {MOCK_LOGS.map((log, i) => {
               const style = logIcon[log.type as keyof typeof logIcon];
+              const isInteract = log.type === 'interact' && log.response;
+              const isSurvey = log.type === 'survey' && log.response;
+              const isExpandable = isInteract || isSurvey;
+              const isExpanded = expandedLog === i;
               return (
-                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${style.bg}`}>
-                    {log.type === 'open' ? (
-                      <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    ) : (
-                      <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                      </svg>
-                    )}
+                <div key={i}
+                  className={`px-3 py-2.5 rounded-xl transition-colors ${isInteract ? 'cursor-pointer hover:bg-purple-50/60' : isSurvey ? 'cursor-pointer hover:bg-gray-100/60' : 'hover:bg-gray-50'}`}
+                  onClick={() => isExpandable && setExpandedLog(isExpanded ? null : i)}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${style.bg}`}>
+                      {log.type === 'open' ? (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      ) : log.type === 'survey' ? (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      ) : (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-700">{log.action}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-gray-300 whitespace-nowrap">{log.date}</span>
+                      {isExpandable && (
+                        <svg className={`w-3.5 h-3.5 text-gray-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700">{log.action}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>
-                  </div>
-                  <span className="text-xs text-gray-300 flex-shrink-0 whitespace-nowrap">{log.date}</span>
+                  {isInteract && isExpanded && (
+                    <div className="mt-2.5 ml-10 bg-purple-50 rounded-lg px-3 py-2.5">
+                      <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{log.response as string}</p>
+                    </div>
+                  )}
+                  {isSurvey && isExpanded && (() => {
+                    const r = log.response as { checks: string[]; unchecked: string[]; text: string };
+                    return (
+                      <div className="mt-2.5 ml-10 bg-gray-100 rounded-lg px-3 py-3 space-y-3">
+                        <div className="space-y-1.5">
+                          {r.checks.map((item, j) => (
+                            <div key={j} className="flex items-center gap-2">
+                              <span className="text-emerald-500 text-xs font-bold">✓</span>
+                              <p className="text-xs text-gray-600">{item}</p>
+                            </div>
+                          ))}
+                          {r.unchecked.map((item, j) => (
+                            <div key={j} className="flex items-center gap-2">
+                              <span className="text-gray-300 text-xs font-bold">✗</span>
+                              <p className="text-xs text-gray-400">{item}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-gray-200 pt-2.5">
+                          <p className="text-[10px] font-semibold text-gray-400 mb-1">주관식 응답</p>
+                          <p className="text-xs text-gray-600 leading-relaxed">{r.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -349,12 +363,45 @@ export default function ParticipantDetailPage() {
   );
 }
 
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+function SemiCircle({ percent, color }: { percent: number; color: string }) {
+  return (
+    <svg viewBox="0 0 80 44" className={`w-20 h-11 ${color}`}>
+      <path
+        d="M 4 40 A 36 36 0 0 1 76 40"
+        fill="none"
+        stroke="#e5e7eb"
+        strokeWidth="8"
+        strokeLinecap="butt"
+      />
+      <path
+        d="M 4 40 A 36 36 0 0 1 76 40"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="butt"
+        pathLength="100"
+        strokeDasharray={`${percent} 100`}
+      />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, sub, color, suffix, percent }: { label: string; value: string; sub: string; color: string; suffix?: string; percent?: number }) {
   return (
     <div className="bg-gray-50 rounded-xl px-4 py-3.5">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className={`text-xl font-bold ${color}`}>
+            {value}
+            {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+        </div>
+        {percent !== undefined && (
+          <SemiCircle percent={percent} color={color} />
+        )}
+      </div>
     </div>
   );
 }
