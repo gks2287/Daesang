@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_STORYLINE, type StorylineStep } from '@/lib/storyline';
 import { makeStepContents, type StepContent, type Round } from '@/lib/content';
 
@@ -63,8 +64,16 @@ interface NewNewsletterDraftStore extends NewNewsletterDraft {
   resetDraft: () => void;
 }
 
-export const useNewNewsletterDraftStore = create<NewNewsletterDraftStore>((set) => ({
-  ...DEFAULT_DRAFT,
-  setDraft: (patch) => set(patch),
-  resetDraft: () => set(DEFAULT_DRAFT),
-}));
+export const useNewNewsletterDraftStore = create<NewNewsletterDraftStore>()(
+  persist(
+    (set) => ({
+      ...DEFAULT_DRAFT,
+      setDraft: (patch) => set(patch),
+      resetDraft: () => set(DEFAULT_DRAFT),
+    }),
+    {
+      name: 'newsletter_draft_session',
+      storage: createJSONStorage(() => sessionStorage),
+    }
+  )
+);

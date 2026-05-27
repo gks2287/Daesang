@@ -2,7 +2,10 @@
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestion } from '@/store/newNewsletterDraftStore';
+import type { StorylineStep } from '@/lib/storyline';
+import type { Round } from '@/lib/content';
 
 // ── 타입 ─────────────────────────────────────────────────────────────
 type RoundStatus = 'inProgress' | 'completed';
@@ -229,6 +232,69 @@ function filterRounds(rounds: RoundData[], tab: TabType): RoundData[] {
   if (tab === '제작 중') return rounds.filter(r => r.status === 'inProgress');
   if (tab === '제작완료') return rounds.filter(r => r.status === 'completed');
   return rounds;
+}
+
+// ── 복구 팝업 타입 ────────────────────────────────────────────────────
+interface RecoveryDraftData {
+  savedAt: string;
+  companyNames: string[];
+  stepLabel: string;
+  kind: string;
+  companyIds: number[];
+  selectedTypes: string[];
+  selectedLeaders: number[];
+  wizardStep: number;
+  customStoryline: StorylineStep[];
+  totalRounds: number;
+  roundDistribution: { stepIndex: number; count: number }[];
+  rounds: Round[];
+  suggestions: DraftTopicSuggestion[];
+  deliveryInterval: string | null;
+  startDate: string;
+}
+
+// ── 복구 팝업 ─────────────────────────────────────────────────────────
+function RecoveryModal({ draft, onNew, onContinue }: {
+  draft: RecoveryDraftData; onNew: () => void; onContinue: () => void;
+}) {
+  const savedDate = new Date(draft.savedAt).toLocaleDateString('ko-KR', {
+    month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-gray-800">작업 중인 내용이 있습니다</h3>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              <span className="font-semibold text-gray-700">{draft.companyNames.join(', ')}</span>의 뉴스레터를{' '}
+              <span className="font-semibold text-gray-700">{draft.stepLabel}</span> 중이었습니다.
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1">{savedDate} 임시저장</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onNew}
+            className="flex-1 px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            새로 만들기
+          </button>
+          <button
+            onClick={onContinue}
+            className="flex-1 px-4 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors"
+          >
+            이어서 하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── 미리보기 모달 ────────────────────────────────────────────────────
@@ -572,7 +638,11 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
 // ── 메인 콘텐츠 ─────────────────────────────────────────────────────
 function NewslettersContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const setDraft = useNewNewsletterDraftStore(s => s.setDraft);
+  const resetDraft = useNewNewsletterDraftStore(s => s.resetDraft);
   const [activeTab, setActiveTab] = useState<TabType>('최근');
+  const [recoveryDraft, setRecoveryDraft] = useState<RecoveryDraftData | null>(null);
   const [search, setSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
@@ -584,6 +654,43 @@ function NewslettersContent() {
     const tab = searchParams.get('tab');
     if (tab === '제작 중' || tab === '제작완료') setActiveTab(tab as TabType);
   }, [searchParams]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('newsletter_draft_saved');
+      if (saved) setRecoveryDraft(JSON.parse(saved) as RecoveryDraftData);
+    } catch {}
+  }, []);
+
+  function handleNewDraft() {
+    localStorage.removeItem('newsletter_draft_saved');
+    resetDraft();
+    setRecoveryDraft(null);
+    router.push('/admin/newsletters/new');
+  }
+
+  function handleContinueDraft() {
+    if (!recoveryDraft) return;
+    setDraft({
+      kind: (recoveryDraft.kind as '일반형' | '맞춤형') ?? null,
+      companyIds: recoveryDraft.companyIds ?? [],
+      selectedTypes: recoveryDraft.selectedTypes ?? [],
+      selectedLeaders: recoveryDraft.selectedLeaders ?? [],
+      wizardStep: (Math.min(Math.max(recoveryDraft.wizardStep ?? 1, 1), 4)) as 1 | 2 | 3 | 4,
+      customStoryline: recoveryDraft.customStoryline ?? [],
+      totalRounds: recoveryDraft.totalRounds ?? 0,
+      roundDistribution: recoveryDraft.roundDistribution ?? [],
+      rounds: recoveryDraft.rounds ?? [],
+      suggestions: recoveryDraft.suggestions ?? [],
+    });
+    const ids = (recoveryDraft.companyIds ?? []).join(',');
+    const types = (recoveryDraft.selectedTypes ?? []).join(',');
+    const leaders = (recoveryDraft.selectedLeaders ?? []).length;
+    router.push(
+      `/admin/newsletters/new/configure?kind=${encodeURIComponent(recoveryDraft.kind ?? '일반형')}&companyIds=${ids}&types=${encodeURIComponent(types)}&depts=&leaders=${leaders}`
+    );
+    setRecoveryDraft(null);
+  }
 
   useEffect(() => {
     setSelectedRoundsByCompany(new Map());
@@ -674,8 +781,19 @@ function NewslettersContent() {
       {/* 본문 */}
       <div className="flex-1 px-8 py-6 flex flex-col overflow-hidden bg-white">
         {/* 새로 만들기 */}
-        <Link href="/admin/newsletters/new"
-          className="flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group">
+        <button
+          onClick={() => {
+            try {
+              const saved = localStorage.getItem('newsletter_draft_saved');
+              if (saved) {
+                setRecoveryDraft(JSON.parse(saved) as RecoveryDraftData);
+                return;
+              }
+            } catch {}
+            router.push('/admin/newsletters/new');
+          }}
+          className="w-full flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group text-left"
+        >
           <div className="w-10 h-10 rounded-xl bg-[#55A4DA] group-hover:bg-[#3A8BC4] flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -685,7 +803,7 @@ function NewslettersContent() {
             <p className="text-sm font-bold text-[#2E7DB5] group-hover:text-[#1A6BA0] transition-colors">새로 만들기</p>
             <p className="text-xs text-gray-400 mt-0.5">새 뉴스레터를 제작합니다</p>
           </div>
-        </Link>
+        </button>
 
         {/* 탭 */}
         <div className="flex gap-6 border-b border-gray-200 mb-4 pl-2">
@@ -760,6 +878,9 @@ function NewslettersContent() {
       {previewTarget && <PreviewModal target={previewTarget} onClose={() => setPreviewTarget(null)} />}
       {sendConfirmTarget && (
         <SendConfirmModal target={sendConfirmTarget} onConfirm={handleSendConfirm} onClose={() => setSendConfirmTarget(null)} />
+      )}
+      {recoveryDraft && (
+        <RecoveryModal draft={recoveryDraft} onNew={handleNewDraft} onContinue={handleContinueDraft} />
       )}
     </div>
   );
