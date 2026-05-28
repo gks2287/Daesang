@@ -287,7 +287,11 @@ function ContentFormModal({
         </div>
 
         {/* 바디 (스크롤) */}
-        <div className="flex-1 overflow-y-auto p-6 pb-8 space-y-5">
+        <div className="flex-1 min-h-0 relative">
+        {urlParsing && (
+          <div className="absolute inset-0 bg-white/60 z-10 cursor-not-allowed rounded-b-2xl" />
+        )}
+        <div className="h-full overflow-y-auto p-6 pb-8 space-y-5">
 
           {/* J& 오리지널: 파일 업로드 영역 */}
           {form.type === 'original' && (
@@ -382,7 +386,7 @@ function ContentFormModal({
           {/* 큐레이션: URL 입력 */}
           {form.type === 'curation' && (
             <div className="space-y-2">
-              <label className={labelCls}>원문 URL <span className="text-gray-300 font-normal">(선택 · URL 입력 후 포커스 아웃 시 AI 자동파싱)</span></label>
+              <label className={labelCls}>원문 URL <span className="text-gray-300 font-normal">(선택 · Enter 또는 붙여넣기 시 AI 자동파싱)</span></label>
               <div className="relative">
                 <input
                   className={`${inputCls} pr-10 ${urlParsing ? 'bg-gray-50 text-gray-400' : ''}`}
@@ -393,8 +397,19 @@ function ContentFormModal({
                     setUrlParsed(false);
                     setUrlParseError(null);
                   }}
-                  onBlur={e => handleUrlParse(e.target.value)}
-                  placeholder="https://..."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleUrlParse(sourceUrl);
+                    }
+                  }}
+                  onPaste={e => {
+                    const pasted = e.clipboardData.getData('text').trim();
+                    if (pasted.startsWith('http://') || pasted.startsWith('https://')) {
+                      setTimeout(() => handleUrlParse(pasted), 0);
+                    }
+                  }}
+                  placeholder="https://  (Enter 또는 붙여넣기로 AI 파싱 시작)"
                 />
                 {urlParsing && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -576,6 +591,7 @@ function ContentFormModal({
               placeholder="본문 내용을 입력하세요 (마크다운 형식 사용 가능)"
             />
           </div>
+        </div>
         </div>
 
         {/* 푸터 */}
