@@ -1,12 +1,11 @@
 export default function ContentPage() {
   return (
-    <div className="flex flex-col h-full p-6 gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] tracking-[0.2em] text-gray-400 font-medium mb-0.5">CONTENT</p>
-          <h1 className="text-xl font-bold text-gray-800">콘텐츠 등록</h1>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-bold">
+          <span>콘텐츠 등록</span>
         </div>
-        <button className="flex items-center gap-2 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-semibold px-4 py-2 rounded-sm transition-colors">
+        <button className="flex items-center gap-2 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>

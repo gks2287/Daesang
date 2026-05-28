@@ -148,13 +148,7 @@ export default function ParticipantsPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">
-            리더십 코칭 관리
-          </Link>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">
-            고객사 현황
+            리더목록
           </Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -341,10 +335,10 @@ export default function ParticipantsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
-              {/* 진단 회차 필터 */}
+              {/* 발송 회차 필터 */}
               <div className="relative">
                 <select className="appearance-none text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer hover:border-[#55A4DA]/60 focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/20 transition-all shadow-sm">
-                  <option value="">진단 회차</option>
+                  <option value="">발송 회차</option>
                   <option>1회차</option>
                   <option>2회차</option>
                   <option>3회차</option>
@@ -358,7 +352,7 @@ export default function ParticipantsPage() {
 
           {/* 컬럼 헤더 */}
           <div className="grid grid-cols-[2.5fr_1fr_1fr_1fr_1fr_1fr_80px] px-6 py-2.5 bg-gray-50 border-b border-gray-200">
-            {['이름', '부서', '직책', '리더십 유형', '발송 현황', '진단 회차', ''].map(h => (
+            {['이름', '부서', '직책', '리더십 유형', '발송 현황', '발송 회차', ''].map(h => (
               <p key={h} className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{h}</p>
             ))}
           </div>
@@ -408,7 +402,7 @@ export default function ParticipantsPage() {
                       <span className={`text-sm font-medium ${badge.text}`}>{p.deliveryStatus}</span>
                     </div>
 
-                    {/* 진단 회차 */}
+                    {/* 발송 회차 */}
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[48px]">
                         <div

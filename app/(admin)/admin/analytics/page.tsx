@@ -1,227 +1,193 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useCompanyStore } from '@/store/companyStore';
+import { useParticipantStore, type LeadershipType } from '@/store/participantStore';
 
-// ── 임시 마스터 데이터 (API 연동 시 교체) ─────────────────────────────────
-const COMPANIES = [
-  { id: 'all', name: '전체 기업' },
-  { id: 'c1', name: '삼성전자' },
-  { id: 'c2', name: 'LG화학' },
-  { id: 'c3', name: '현대모비스' },
-];
+const YEARS = ['2026', '2025', '2024'];
 
-const LEADERSHIP_TYPES = [
-  { id: 'all', name: '전체 유형' },
-  { id: 'lt1', name: '독선형' },
-  { id: 'lt2', name: '방임형' },
-  { id: 'lt3', name: '감정기복형' },
-  { id: 'lt4', name: '성과압박형' },
-];
-
-// ── 임시 지표 데이터 ──────────────────────────────────────────────────────
-const MOCK_STATS: Record<string, Record<string, { sent: number; openRate: number; taskRate: number; activeCampaigns: number }>> = {
-  all: {
-    all:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt1:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt2:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt3:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt4:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-  },
-  c1: {
-    all:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt1:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt2:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt3:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt4:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-  },
-  c2: {
-    all:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt1:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt2:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt3:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt4:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-  },
-  c3: {
-    all:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt1:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt2:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt3:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-    lt4:  { sent: 0, openRate: 0, taskRate: 0, activeCampaigns: 0 },
-  },
+const LEADERSHIP_COLORS: Record<LeadershipType, string> = {
+  '독재형':    '#2E7DB5',
+  '방관형':    '#55A4DA',
+  '성과압박형': '#7EC8E3',
+  '불통형':    '#A8D8EA',
+  '불명확형':  '#4A90C4',
+  '감정기복형': '#B8D4E8',
 };
 
-// ── 컴포넌트 ──────────────────────────────────────────────────────────────
-export default function AnalyticsPage() {
-  const [companyId, setCompanyId] = useState('all');
-  const [leadershipTypeId, setLeadershipTypeId] = useState('all');
+const statusDot: Record<string, string> = {
+  '진단 중':      'bg-[#55A4DA]',
+  '진단 완료':    'bg-emerald-400',
+  '진단 시작 전': 'bg-gray-300',
+};
+const statusText: Record<string, string> = {
+  '진단 중':      'text-[#2E7DB5]',
+  '진단 완료':    'text-emerald-600',
+  '진단 시작 전': 'text-gray-400',
+};
 
-  const stats = useMemo(
-    () => MOCK_STATS[companyId]?.[leadershipTypeId] ?? MOCK_STATS['all']['all'],
-    [companyId, leadershipTypeId],
+function DonutChart({ segments, total }: {
+  segments: { type: LeadershipType; count: number }[];
+  total: number;
+}) {
+  let cum = 0;
+  return (
+    <svg viewBox="0 0 100 100" className="w-40 h-40">
+      <g style={{ transform: 'rotate(-90deg)', transformOrigin: '50px 50px' }}>
+        {total === 0 ? (
+          <circle cx="50" cy="50" r="32" fill="none" stroke="#f3f4f6" strokeWidth="12" />
+        ) : segments.filter(s => s.count > 0).map((seg, i) => {
+          const pct = (seg.count / total) * 100;
+          const offset = -cum;
+          cum += pct;
+          return (
+            <circle
+              key={i}
+              cx="50" cy="50" r="32"
+              fill="none"
+              stroke={LEADERSHIP_COLORS[seg.type]}
+              strokeWidth="12"
+              pathLength="100"
+              strokeDasharray={`${pct} 100`}
+              strokeDashoffset={offset}
+            />
+          );
+        })}
+      </g>
+    </svg>
+  );
+}
+
+export default function AnalyticsPage() {
+  const [activeYear, setActiveYear] = useState('2026');
+  const companies = useCompanyStore(s => s.companies);
+  const participants = useParticipantStore(s => s.participants);
+
+  const filteredCompanies = useMemo(() =>
+    companies.filter(c =>
+      c.startDate?.startsWith(activeYear) || c.endDate?.startsWith(activeYear)
+    ),
+    [companies, activeYear],
   );
 
-  const selectedCompany = COMPANIES.find((c) => c.id === companyId);
-  const selectedType = LEADERSHIP_TYPES.find((t) => t.id === leadershipTypeId);
+  const companyStats = useMemo(() =>
+    filteredCompanies.map(company => {
+      const members = participants.filter(p => p.companyId === company.id);
+      const sent = members.filter(p => p.deliveryStatus !== '미발송').length;
+      const opened = members.filter(p => p.deliveryStatus === '열람' || p.deliveryStatus === '완료').length;
+      const completed = members.filter(p => p.deliveryStatus === '완료').length;
+      const openRate = sent > 0 ? Math.round((opened / sent) * 100) : 0;
+      const completionRate = members.length > 0 ? Math.round((completed / members.length) * 100) : 0;
 
-  const summaryCards = [
-    { label: '총 발송 수', value: stats.sent.toLocaleString(), sub: '누적' },
-    { label: '열람률', value: `${stats.openRate}%`, sub: '최근 30일' },
-    { label: '과제 완료율', value: `${stats.taskRate}%`, sub: '최근 30일' },
-    { label: '활성 캠페인', value: stats.activeCampaigns.toString(), sub: '진행 중' },
-  ];
+      const leadershipDist = (Object.keys(LEADERSHIP_COLORS) as LeadershipType[]).map(type => ({
+        type,
+        count: members.filter(p => p.leadershipType === type).length,
+      }));
+
+      return { company, total: members.length, openRate, completionRate, leadershipDist };
+    }),
+    [filteredCompanies, participants],
+  );
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto bg-[#F8FAFC]">
-      {/* ── 헤더 + 필터 ── */}
-      <div className="px-6 pt-6 flex-shrink-0">
-        <div className="flex items-center justify-between gap-4">
-          {/* 타이틀 */}
-          <div>
-            <p className="text-[11px] tracking-[0.2em] text-gray-400 font-medium mb-0.5">ANALYTICS</p>
-            <h1 className="text-xl font-bold text-gray-800">데이터 대시보드</h1>
-          </div>
-
-          {/* 필터 */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {/* 기업 필터 */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
-                기업
-              </label>
-              <div className="relative">
-                <select
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  className="appearance-none bg-[#F4F6FA] border border-gray-200 text-sm text-gray-700 font-medium rounded-xl px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-[#55A4DA]/40 cursor-pointer min-w-[140px]"
-                >
-                  {COMPANIES.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-
-            {/* 구분선 */}
-            <div className="h-10 w-px bg-gray-200" />
-
-            {/* 리더십 유형 필터 */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-1">
-                리더십 유형
-              </label>
-              <div className="relative">
-                <select
-                  value={leadershipTypeId}
-                  onChange={(e) => setLeadershipTypeId(e.target.value)}
-                  className="appearance-none bg-[#F4F6FA] border border-gray-200 text-sm text-gray-700 font-medium rounded-xl px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-[#55A4DA]/40 cursor-pointer min-w-[150px]"
-                >
-                  {LEADERSHIP_TYPES.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-
-            {/* 초기화 버튼 */}
-            {(companyId !== 'all' || leadershipTypeId !== 'all') && (
-              <button
-                onClick={() => { setCompanyId('all'); setLeadershipTypeId('all'); }}
-                className="text-xs text-[#55A4DA] hover:text-[#3A8BC4] font-medium transition-colors"
-              >
-                초기화
-              </button>
-            )}
-          </div>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* 상단 토퍼 */}
+      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex-shrink-0">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-bold">
+          <span>기업목록</span>
         </div>
-
       </div>
-      <div className="border-b border-gray-200 mx-6 mt-4" />
 
-      {/* ── 대시보드 본문 ── */}
-      {companyId === 'all' ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#55A4DA]/10 flex items-center justify-center">
-            <svg className="w-8 h-8 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-base font-semibold text-gray-700">기업을 선택해주세요</p>
-            <p className="text-sm text-gray-400 mt-1">우측 상단 기업 필터에서 조회할 기업을 선택하면<br />대시보드가 표시됩니다.</p>
-          </div>
-        </div>
-      ) : (
-      <div className="p-8 space-y-6">
-        {/* 요약 카드 */}
-        <div className="grid grid-cols-4 gap-4">
-          {summaryCards.map((card) => (
-            <div key={card.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <p className="text-xs text-gray-400 font-medium">{card.label}</p>
-              <p className="text-3xl font-bold text-gray-800 mt-1">{card.value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{card.sub}</p>
-            </div>
+      {/* 연도 탭 */}
+      <div className="bg-white border-b border-gray-200 px-8 flex-shrink-0">
+        <div className="flex gap-6">
+          {YEARS.map(year => (
+            <button
+              key={year}
+              onClick={() => setActiveYear(year)}
+              className={`pb-3 pt-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeYear === year
+                  ? 'border-[#55A4DA] text-[#55A4DA]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {year}
+            </button>
           ))}
         </div>
-
-        {/* 차트 영역 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1">주간 열람 추이</h2>
-            <p className="text-xs text-gray-400 mb-4">
-              {selectedCompany?.name ?? '전체 기업'} · {selectedType?.name ?? '전체 유형'}
-            </p>
-            <div className="h-48 flex items-center justify-center text-sm text-gray-300">
-              차트 준비 중
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-1">리더십 유형별 분포</h2>
-            <p className="text-xs text-gray-400 mb-4">
-              {selectedCompany?.name ?? '전체 기업'} 기준
-            </p>
-            <div className="h-48 flex items-center justify-center text-sm text-gray-300">
-              차트 준비 중
-            </div>
-          </div>
-        </div>
-
-        {/* 고객사별 현황 테이블 */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">
-            {companyId === 'all' ? '고객사별 현황' : `${selectedCompany?.name} · 직책자 현황`}
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {(companyId === 'all'
-                    ? ['고객사', '직책자 수', '발송 수', '열람률', '과제 완료율']
-                    : ['직책자', '리더십 유형', '발송 수', '열람률', '과제 완료율']
-                  ).map((col) => (
-                    <th key={col} className="text-left text-xs text-gray-400 font-medium pb-3 pr-6">
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-gray-300 text-sm">
-                    데이터 없음
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
-      )}
+
+      {/* 본문 */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        {companyStats.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-300">
+            <p className="text-sm">{activeYear}년 기업 데이터가 없습니다.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-6">
+            {companyStats.map(({ company, total, openRate, completionRate, leadershipDist }) => (
+              <Link
+                key={company.id}
+                href={`/admin/analytics/${company.id}`}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 hover:border-[#55A4DA]/40 hover:shadow-md transition-all group flex flex-col"
+              >
+                {/* 기업 헤더 */}
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl ${company.color} flex items-center justify-center flex-shrink-0`}>
+                      <span className="text-white text-xs font-bold">{company.initials}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-800 group-hover:text-[#55A4DA] transition-colors">{company.name}</p>
+                      <p className="text-xs text-gray-400">{company.industry}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[company.status]}`} />
+                    <span className={`text-xs font-medium ${statusText[company.status]}`}>{company.status}</span>
+                  </div>
+                </div>
+
+                {/* 도넛 차트 */}
+                <div className="flex flex-col items-center gap-4 py-2">
+                  <DonutChart segments={leadershipDist} total={total} />
+
+                  {/* 범례 */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full">
+                    {leadershipDist.filter(s => s.count > 0).map(seg => (
+                      <div key={seg.type} className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[seg.type] }} />
+                        <span className="text-[10px] text-gray-500 truncate">{seg.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 하단 지표 */}
+                <div className="grid grid-cols-3 gap-2 border-t border-gray-100 mt-4 pt-4">
+                  <div className="text-center">
+                    <p className="text-base font-bold text-gray-800">{total}<span className="text-xs font-medium text-gray-400 ml-0.5">명</span></p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">대상 리더</p>
+                  </div>
+                  <div className="text-center border-x border-gray-100">
+                    <p className="text-base font-bold text-[#55A4DA]">{openRate}<span className="text-xs font-medium text-gray-400 ml-0.5">%</span></p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">열람률</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-base font-bold text-emerald-500">{completionRate}<span className="text-xs font-medium text-gray-400 ml-0.5">%</span></p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">참여율</p>
+                  </div>
+                </div>
+
+                {company.startDate && (
+                  <p className="text-[10px] text-gray-300 mt-3">{company.startDate} ~ {company.endDate}</p>
+                )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
