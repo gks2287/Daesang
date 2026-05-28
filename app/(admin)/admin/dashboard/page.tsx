@@ -5,41 +5,35 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCompanyStore } from '@/store/companyStore';
 
-const TABS = ['전체 기업', '코칭 진행 중', '코칭 완료', '미시작'];
+const YEARS = ['2026', '2025', '2024'];
 
 const statusDot: Record<string, string> = {
-  '코칭 진행 중': 'bg-[#55A4DA]',
-  '코칭 완료': 'bg-emerald-400',
-  '준비 중': 'bg-yellow-400',
-  '미시작': 'bg-gray-300',
+  '진단 중': 'bg-[#55A4DA]',
+  '진단 완료': 'bg-emerald-400',
+  '진단 시작 전': 'bg-gray-300',
 };
 
 const statusText: Record<string, string> = {
-  '코칭 진행 중': 'text-[#2E7DB5]',
-  '코칭 완료': 'text-emerald-600',
-  '준비 중': 'text-yellow-600',
-  '미시작': 'text-gray-400',
+  '진단 중': 'text-[#2E7DB5]',
+  '진단 완료': 'text-emerald-600',
+  '진단 시작 전': 'text-gray-400',
 };
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('전체 기업');
+  const [activeYear, setActiveYear] = useState('2026');
   const companies = useCompanyStore(s => s.companies);
   const router = useRouter();
 
-  const filtered = activeTab === '전체 기업'
-    ? companies
-    : companies.filter(c => c.status === activeTab);
+  const filtered = companies.filter(c =>
+    c.startDate?.startsWith(activeYear) || c.endDate?.startsWith(activeYear)
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── 상단 토퍼 ── */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
-          <span>리더십 코칭 관리</span>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="text-gray-800 font-bold">고객사 현황</span>
+        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-bold">
+          <span>리더목록</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
@@ -63,19 +57,19 @@ export default function DashboardPage() {
 
       {/* ── 본문 ── */}
       <div className="flex-1 px-8 py-6 flex flex-col overflow-hidden bg-white">
-        {/* 탭 */}
+        {/* 연도 탭 */}
         <div className="flex gap-6 border-b border-gray-200 mb-6">
-          {TABS.map((tab) => (
+          {YEARS.map((year) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={year}
+              onClick={() => setActiveYear(year)}
               className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeTab === tab
+                activeYear === year
                   ? 'border-[#55A4DA] text-[#55A4DA]'
                   : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
-              {tab}
+              {year}
             </button>
           ))}
         </div>
@@ -85,12 +79,12 @@ export default function DashboardPage() {
           {/* 테이블 헤더 */}
           <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-200 bg-gray-50/60">
             <p className="text-sm text-gray-500 font-medium">기업 목록</p>
-            <p className="text-sm font-semibold text-[#55A4DA]">{filtered.length}개 기업</p>
+            <p className="text-sm font-semibold text-[#55A4DA]">{activeYear}년 · {filtered.length}개 기업</p>
           </div>
 
           {/* 컬럼 헤더 */}
           <div className="grid grid-cols-[3fr_1fr_1fr_40px] px-6 py-2.5 bg-gray-50 border-b border-gray-200">
-            {['기업명', '대상 리더', '코칭 현황', ''].map((h) => (
+            {['기업명', '대상 리더', '진척도', ''].map((h) => (
               <p key={h} className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{h}</p>
             ))}
           </div>
@@ -110,7 +104,6 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{company.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">대상 리더 {company.participantCount}명</p>
                   </div>
                 </div>
 

@@ -190,8 +190,7 @@ export default function CompanyEditPage() {
     // 이전 연도 직책자를 새 연도로 복사
     const prevParticipants = allParticipants.filter(p => p.year === prev);
     if (prevParticipants.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      addParticipants(prevParticipants.map(({ id, ...rest }) => ({
+      addParticipants(prevParticipants.map(({ id: _id, ...rest }) => ({
         ...rest,
         year: next,
         deliveryStatus: '미발송',
@@ -249,7 +248,7 @@ export default function CompanyEditPage() {
             </Field>
             <Field label="HR 담당자"><input value={companyForm.hrName} onChange={e => setCompanyForm(f => ({ ...f, hrName: e.target.value }))} placeholder="담당자 이름" className={inputCls} /></Field>
             <Field label="HR 이메일"><input type="email" value={companyForm.hrEmail} onChange={e => setCompanyForm(f => ({ ...f, hrEmail: e.target.value }))} placeholder="hr@company.com" className={inputCls} /></Field>
-            <Field label="코칭 시작일"><input type="date" value={companyForm.startDate} onChange={e => setCompanyForm(f => ({ ...f, startDate: e.target.value }))} className={inputCls} /></Field>
+            <Field label="팔로업 시작일"><input type="date" value={companyForm.startDate} onChange={e => setCompanyForm(f => ({ ...f, startDate: e.target.value }))} className={inputCls} /></Field>
             <Field label="코칭 종료일"><input type="date" value={companyForm.endDate} onChange={e => setCompanyForm(f => ({ ...f, endDate: e.target.value }))} className={inputCls} /></Field>
             <Field label="메모" className="col-span-2">
               <textarea value={companyForm.note} onChange={e => setCompanyForm(f => ({ ...f, note: e.target.value }))} rows={2} className={inputCls + ' resize-none'} />
@@ -410,7 +409,7 @@ export default function CompanyEditPage() {
 
           <div className="rounded-xl border border-gray-200 overflow-hidden">
             <div className="grid grid-cols-[2fr_1.2fr_1fr_2fr_1.4fr_0.8fr_88px] px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-              {['이름', '부서', '직책', '이메일', '리더십 유형', '진단 회차', ''].map(h => (
+              {['이름', '부서', '직책', '이메일', '리더십 유형', '발송 회차', ''].map(h => (
                 <p key={h} className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{h}</p>
               ))}
             </div>
