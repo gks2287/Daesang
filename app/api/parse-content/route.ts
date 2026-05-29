@@ -42,13 +42,21 @@ function buildUserPrompt(text: string): string {
   "duration": 반드시 1 또는 2 중 하나의 숫자 (전체 뉴스레터가 4-5분이므로 개별 콘텐츠는 1-2분이어야 합니다),
   "author": "작성자 이름 (없으면 J&Company 코칭팀)",
   "tags": ["핵심 키워드 3~5개 배열"],
-  "body": "다음 기준으로 작성하세요:\n- 원본 문서의 핵심 내용을 빠짐없이 정리\n- 문서의 주요 논점, 데이터, 사례를 모두 포함\n- 분량: 500~800자 (원본 내용이 많으면 더 길어도 됨)\n- 문체: 명확하고 읽기 쉬운 설명체\n- 구조: 원본의 흐름을 따라 자연스럽게 정리\n- 존댓말 사용\n- 이모지, 소제목 등 뉴스레터 형식 사용 금지\n- 원본에 있는 구체적 수치/사례/데이터 반드시 포함",
   "summary": "한 줄 요약 (50자 이내)"
 }
 JSON만 응답하고 다른 텍스트는 포함하지 마세요.
 
 문서 내용:
 ${truncated}`;
+}
+
+function cleanBodyText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
 }
 
 async function extractText(file: File): Promise<string> {
@@ -226,7 +234,7 @@ export async function POST(req: NextRequest) {
       duration,
       author: String(parsed.author ?? 'J&Company 코칭팀'),
       tags,
-      body: String(parsed.body ?? ''),
+      body: cleanBodyText(text),
       summary: String(parsed.summary ?? ''),
       thumbnail,
     };
