@@ -33,7 +33,7 @@ function DonutChart({ segments, total }: {
 }) {
   let cum = 0;
   return (
-    <svg viewBox="0 0 100 100" className="w-40 h-40">
+    <svg viewBox="0 0 100 100" className="w-32 h-32">
       <g style={{ transform: 'rotate(-90deg)', transformOrigin: '50px 50px' }}>
         {total === 0 ? (
           <circle cx="50" cy="50" r="32" fill="none" stroke="#f3f4f6" strokeWidth="12" />
@@ -93,9 +93,9 @@ export default function AnalyticsPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-800 font-bold">
-          <span>기업목록</span>
+          <span>데이터 대시보드</span>
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export default function AnalyticsPage() {
                 className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 hover:border-[#55A4DA]/40 hover:shadow-md transition-all group flex flex-col"
               >
                 {/* 기업 헤더 */}
-                <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl ${company.color} flex items-center justify-center flex-shrink-0`}>
                       <span className="text-white text-xs font-bold">{company.initials}</span>
@@ -149,23 +149,26 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* 도넛 차트 */}
-                <div className="flex flex-col items-center gap-4 py-2">
-                  <DonutChart segments={leadershipDist} total={total} />
+                {/* 도넛 차트 + 범례 */}
+                <div className="flex items-center justify-center gap-12 py-1">
+                  <div className="flex-shrink-0">
+                    <DonutChart segments={leadershipDist} total={total} />
+                  </div>
 
                   {/* 범례 */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full">
+                  <div className="flex flex-col gap-2 min-w-0">
                     {leadershipDist.filter(s => s.count > 0).map(seg => (
                       <div key={seg.type} className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[seg.type] }} />
-                        <span className="text-[10px] text-gray-500 truncate">{seg.type}</span>
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap">{seg.type}</span>
+                        <span className="text-[10px] text-gray-400 ml-auto pl-2">{seg.count}명</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* 하단 지표 */}
-                <div className="grid grid-cols-3 gap-2 border-t border-gray-100 mt-4 pt-4">
+                <div className="grid grid-cols-3 gap-2 border-t border-gray-100 mt-2 pt-3">
                   <div className="text-center">
                     <p className="text-base font-bold text-gray-800">{total}<span className="text-xs font-medium text-gray-400 ml-0.5">명</span></p>
                     <p className="text-[10px] text-gray-400 mt-0.5">대상 리더</p>

@@ -216,7 +216,7 @@ export default function CompanyEditPage() {
       )}
 
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">리더십 코칭 관리</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -227,8 +227,8 @@ export default function CompanyEditPage() {
           <span className="text-gray-800 font-bold">기업 정보 편집</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => router.back()} className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
-          <button onClick={saveCompany} className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-1.5 rounded-lg transition-colors">저장</button>
+          <button onClick={() => router.back()} className="text-sm font-medium text-gray-500 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+          <button onClick={saveCompany} className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-2 rounded-lg transition-colors">저장</button>
         </div>
       </div>
 

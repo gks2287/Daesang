@@ -103,7 +103,7 @@ export default function NewNewsletterPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <Link href="/admin/newsletters" className="hover:text-gray-600 transition-colors">뉴스레터 제작</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -111,7 +111,7 @@ export default function NewNewsletterPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowCancelConfirm(true)}
-            className="text-sm font-medium text-gray-400 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">나가기</button>
+            className="text-sm font-medium text-gray-400 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">나가기</button>
           <button
             onClick={() => {
               const params = new URLSearchParams({
@@ -125,7 +125,7 @@ export default function NewNewsletterPage() {
               router.push(`/admin/newsletters/new/configure?${params.toString()}`);
             }}
             disabled={!allDone}
-            className={`text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors ${allDone ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+            className={`text-sm font-semibold px-5 py-2 rounded-lg transition-colors ${allDone ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
             뉴스레터 내용 생성 →
           </button>
         </div>

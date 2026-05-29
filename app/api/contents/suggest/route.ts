@@ -1,114 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
-import type { ContentPoolItem, ContentCategory } from '@/lib/api/contentPool';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { callClaude } from '@/lib/api/claude';
+import type { ContentPoolItem } from '@/lib/api/contentPool';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const DATA_FILE = path.join(process.cwd(), 'lib', 'mockData', 'contentPool.ts');
 
-const VALID_CATEGORIES: ContentCategory[] = [
-  '아티클', '인터뷰', '책 추천', '성공 사례', '카드뉴스', '웹툰',
-];
-
-type SearchedContent = {
-  title: string;
-  category: string;
-  duration: number;
-  author: string;
-  tags: string[];
-  body: string;
-  thumbnail: string;
-};
+async function readItems(): Promise<ContentPoolItem[]> {
+  const content = await fs.readFile(DATA_FILE, 'utf-8');
+  const markerIdx = content.indexOf('= [');
+  const start = markerIdx === -1 ? -1 : markerIdx + 2;
+  const end = content.lastIndexOf(']');
+  if (start === -1 || end === -1) return [];
+  return JSON.parse(content.slice(start, end + 1)) as ContentPoolItem[];
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { topic, leadershipType, storyStage } = await req.json() as {
+    const { topic, leadershipType, storyStage, existingIds } = await req.json() as {
       topic: string;
       leadershipType?: string;
       storyStage?: string;
       existingIds?: string[];
     };
 
-    const prompt = `당신은 리더십 코칭 뉴스레터 콘텐츠 큐레이터입니다.
-아래 조건에 맞는 콘텐츠를 웹에서 검색해 1~2개 수집해 주세요.
-
-[조건]
-- 뉴스레터 주제: ${topic}
-- 리더십 유형: ${leadershipType ?? '일반'}
-- 스토리 단계: ${storyStage ?? ''}
-
-[분량 제약 — 반드시 준수]
-- 뉴스레터 전체 4~5분 분량 중 콘텐츠에 쓸 수 있는 시간은 최대 3분
-- duration 1분짜리: 최대 2개 수집 가능
-- duration 2분짜리: 1개만 수집
-- 콘텐츠는 절대 3개 이상 수집하지 말 것
-
-[수집 기준]
-- 주제와 직접 관련된 아티클, 인터뷰, 책, 성공 사례, 카드뉴스, 웹툰만 수집 (영상 제외)
-- 신뢰할 수 있는 출처 (언론사, 전문 매체, 학술 자료, 유명 저자 등)
-- 한국어 또는 영어 콘텐츠 모두 가능
-
-[body 작성 가이드]
-- 뉴닉 뉴스레터 스타일: 친근하고 재밌되 정제된 말투
-- 리더(독자)에게 직접 말 거는 2인칭 톤 (예: "여러분은 혹시...")
-- 이모지 적절히 활용 (과하지 않게)
-- 핵심 내용을 bullet 또는 소제목으로 구조화
-- duration 1분 = 400~600자, duration 2분 = 800~1000자
-- 원문의 핵심 논점, 데이터, 사례를 구체적으로 포함
-- 리더십 맥락(${storyStage ?? ''} 단계)과 연결되는 인사이트로 마무리
-
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 포함 금지:
-{
-  "contents": [
-    {
-      "title": "콘텐츠 제목 (한국어, 흥미롭게)",
-      "category": "아티클|인터뷰|책 추천|성공 사례|카드뉴스|웹툰 중 하나",
-      "duration": 1,
-      "author": "출처/매체명",
-      "tags": ["태그1", "태그2", "태그3"],
-      "body": "뉴닉 스타일 본문 (duration 기준 분량 준수)",
-      "thumbnail": ""
+    const allItems = await readItems();
+    if (!allItems.length) {
+      return NextResponse.json({ selectedIds: [] });
     }
-  ]
-}`;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      tools: [{ type: 'web_search_20250305' as const, name: 'web_search' }],
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const exclude = new Set(existingIds ?? []);
+    const candidates = allItems.filter(item => !exclude.has(item.id));
 
-    const textBlocks = response.content.filter(b => b.type === 'text');
-    const lastText = textBlocks.length > 0
-      ? (textBlocks[textBlocks.length - 1] as { type: 'text'; text: string }).text
-      : '';
+    if (!candidates.length) {
+      return NextResponse.json({ selectedIds: [] });
+    }
 
-    if (!lastText) return NextResponse.json({ contents: [] });
+    const contentSummary = candidates
+      .map(item =>
+        `[ID: ${item.id}] ${item.title} (${item.category}) — 태그: ${item.tags.join(', ')} — ${item.body.slice(0, 120)}`,
+      )
+      .join('\n');
 
-    const jsonStart = lastText.indexOf('{');
-    const jsonEnd = lastText.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) return NextResponse.json({ contents: [] });
+    const prompt = `당신은 리더십 코칭 뉴스레터 콘텐츠 큐레이터입니다.
+아래 뉴스레터 주제와 맥락에 가장 잘 맞는 콘텐츠 2~3개를 선택해 주세요.
 
-    const parsed = JSON.parse(lastText.slice(jsonStart, jsonEnd + 1)) as { contents: SearchedContent[] };
-    const now = Date.now();
+[뉴스레터 주제] ${topic}
+[리더십 유형] ${leadershipType ?? '일반'}
+[스토리 단계] ${storyStage ?? ''}
 
-    const contents: ContentPoolItem[] = (parsed.contents ?? [])
-      .slice(0, 2)
-      .map((c, i) => ({
-        id: `suggested_${now}_${i}`,
-        type: 'curation' as const,
-        title: String(c.title ?? ''),
-        category: VALID_CATEGORIES.includes(c.category as ContentCategory)
-          ? (c.category as ContentCategory)
-          : '아티클',
-        duration: Number(c.duration) === 2 ? 2 : 1,
-        author: String(c.author ?? ''),
-        tags: Array.isArray(c.tags) ? c.tags.slice(0, 5) : [],
-        body: String(c.body ?? ''),
-        thumbnail: '',
-        createdAt: new Date().toISOString().split('T')[0],
-      }));
+[후보 콘텐츠 목록]
+${contentSummary}
 
-    return NextResponse.json({ contents });
+주제와 관련성이 가장 높은 콘텐츠 2~3개의 ID만 JSON으로 반환하세요.
+예시: {"selectedIds": ["id1", "id2"]}
+다른 텍스트는 포함하지 마세요.`;
+
+    const raw = await callClaude(prompt);
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return NextResponse.json({ selectedIds: [] });
+    }
+    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { selectedIds: string[] };
+
+    const validIds = new Set(candidates.map(c => c.id));
+    const selectedIds = (parsed.selectedIds ?? [])
+      .filter((id): id is string => typeof id === 'string' && validIds.has(id))
+      .slice(0, 3);
+
+    return NextResponse.json({ selectedIds });
   } catch (e) {
     console.error('[contents/suggest]', e);
     return NextResponse.json({ error: '콘텐츠 추천 중 오류가 발생했습니다.' }, { status: 500 });
