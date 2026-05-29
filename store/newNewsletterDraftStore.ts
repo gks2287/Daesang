@@ -11,7 +11,7 @@ type DeliverySchedule = '주 1회' | '격주' | '월 1회';
 export interface TopicSuggestion {
   title: string;
   description: string;
-  reason?: string;
+  reason: string;
 }
 
 interface NewNewsletterDraft {

@@ -5,35 +5,47 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCompanyStore } from '@/store/companyStore';
 
-const YEARS = ['2026', '2025', '2024'];
+const STATUS_TABS = ['전체', '진단 중', '진단 완료', '진단 준비'] as const;
+type StatusTab = typeof STATUS_TABS[number];
+
+const statusMap: Record<string, string> = {
+  '진단 시작 전': '진단 준비',
+};
+const reverseStatusMap: Record<string, string> = {
+  '진단 준비': '진단 시작 전',
+};
 
 const statusDot: Record<string, string> = {
   '진단 중': 'bg-[#55A4DA]',
   '진단 완료': 'bg-emerald-400',
-  '진단 시작 전': 'bg-gray-300',
+  '진단 준비': 'bg-gray-300',
 };
 
 const statusText: Record<string, string> = {
   '진단 중': 'text-[#2E7DB5]',
   '진단 완료': 'text-emerald-600',
-  '진단 시작 전': 'text-gray-400',
+  '진단 준비': 'text-gray-400',
 };
 
 export default function DashboardPage() {
-  const [activeYear, setActiveYear] = useState('2026');
+  const [activeStatus, setActiveStatus] = useState<StatusTab>('전체');
   const companies = useCompanyStore(s => s.companies);
   const router = useRouter();
 
-  const filtered = companies.filter(c =>
-    c.startDate?.startsWith(activeYear) || c.endDate?.startsWith(activeYear)
-  );
+  const filtered = companies.filter(c => {
+    if (activeStatus === '전체') return true;
+    const displayStatus = statusMap[c.status] ?? c.status;
+    return displayStatus === activeStatus;
+  });
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── 상단 토퍼 ── */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-bold">
-          <span>리더목록</span>
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800">
+          <span className="text-gray-400 font-medium">리더십 코칭 관리</span>
+          <span className="text-gray-300">›</span>
+          <span className="font-bold">진단 대상</span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
@@ -57,19 +69,19 @@ export default function DashboardPage() {
 
       {/* ── 본문 ── */}
       <div className="flex-1 px-8 py-6 flex flex-col overflow-hidden bg-white">
-        {/* 연도 탭 */}
+        {/* 상태 탭 */}
         <div className="flex gap-6 border-b border-gray-200 mb-6">
-          {YEARS.map((year) => (
+          {STATUS_TABS.map((tab) => (
             <button
-              key={year}
-              onClick={() => setActiveYear(year)}
+              key={tab}
+              onClick={() => setActiveStatus(tab)}
               className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                activeYear === year
+                activeStatus === tab
                   ? 'border-[#55A4DA] text-[#55A4DA]'
                   : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
-              {year}
+              {tab}
             </button>
           ))}
         </div>
@@ -79,7 +91,7 @@ export default function DashboardPage() {
           {/* 테이블 헤더 */}
           <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-200 bg-gray-50/60">
             <p className="text-sm text-gray-500 font-medium">기업 목록</p>
-            <p className="text-sm font-semibold text-[#55A4DA]">{activeYear}년 · {filtered.length}개 기업</p>
+            <p className="text-sm font-semibold text-[#55A4DA]">{activeStatus} · {filtered.length}개 기업</p>
           </div>
 
           {/* 컬럼 헤더 */}
@@ -112,8 +124,15 @@ export default function DashboardPage() {
 
                 {/* 코칭 현황 */}
                 <div className="flex items-center gap-2">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[company.status]}`} />
-                  <span className={`text-sm font-medium ${statusText[company.status]}`}>{company.status}</span>
+                  {(() => {
+                    const display = statusMap[company.status] ?? company.status;
+                    return (
+                      <>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[display]}`} />
+                        <span className={`text-sm font-medium ${statusText[display]}`}>{display}</span>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* 더보기 */}

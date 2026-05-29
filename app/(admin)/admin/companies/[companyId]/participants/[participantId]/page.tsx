@@ -93,7 +93,7 @@ export default function ParticipantDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50">
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">리더목록</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,7 +107,7 @@ export default function ParticipantDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-1.5 rounded-lg transition-colors">
+          <button className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-2 rounded-lg transition-colors">
             정보 수정
           </button>
         </div>

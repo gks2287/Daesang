@@ -743,7 +743,7 @@ function NewslettersContent() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <span>리더십 코칭 관리</span>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

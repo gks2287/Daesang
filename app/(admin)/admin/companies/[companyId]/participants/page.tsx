@@ -145,20 +145,18 @@ export default function ParticipantsPage() {
       )}
 
       {/* 상단 토퍼 */}
-      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
-          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">
-            리더목록
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800">
+          <Link href="/admin/dashboard" className="text-gray-400 font-medium hover:text-gray-600 transition-colors">
+            진단 대상
           </Link>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <span className="text-gray-800 font-bold">{company.name}</span>
+          <span className="text-gray-300">›</span>
+          <span className="font-bold">{company.name}</span>
         </div>
 
         <Link
           href={`/admin/companies/${companyId}/edit`}
-          className="flex items-center gap-1.5 text-sm text-gray-500 font-medium px-3.5 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 font-medium px-3.5 py-2 rounded-lg border border-gray-200 hover:border-gray-300 hover:text-gray-700 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
