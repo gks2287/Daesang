@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callClaude } from '@/lib/api/claude';
 
+// ── 타입 ──────────────────────────────────────────────────────────────
 type GeneratedSection = {
   contentTitle: string;
   contentId: string;
   summary: string;
   keyTakeaway: string;
   emoji: string;
+  youtubeUrl?: string;
+};
+
+type GeneratedInteraction = {
+  type: 'quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont';
+  title: string;
+  content:
+    | { question: string; options: string[]; answer: number }
+    | { situation: string; options: { label: string; result: string }[] }
+    | { items: string[] }
+    | { questions: string[] }
+    | { do: string[]; dont: string[] };
+};
+
+type GeneratedSurvey = {
+  type: 'always' | 'periodic';
+  questions: unknown[];
 };
 
 type GeneratedNewsletter = {
@@ -13,7 +32,8 @@ type GeneratedNewsletter = {
   headline: string;
   intro: string;
   sections: GeneratedSection[];
-  interactionText: string;
+  interactions: GeneratedInteraction[];
+  surveys: GeneratedSurvey[];
   closing: string;
 };
 
@@ -33,68 +53,77 @@ type RoundPayload = {
   surveys: string[];
 };
 
-const INTERACTION_LABELS: Record<string, string> = {
-  quiz: '퀴즈',
-  scenario: '선택형 시나리오',
-  selfcheck: '셀프 진단/체크리스트',
-  reflection: '회고 질문',
-  dodont: 'Do & Don\'t 리스트',
-};
-
-function makeMockResponse(round: RoundPayload, leadershipType: string, companyName: string): GeneratedNewsletter {
-  const topicLabel = round.topic.trim() || '리더십 역량 강화';
-  const stepLabel = round.stepLabel || '성장';
+// ── 만족도 조사 고정 구조 ──────────────────────────────────────────────
+function buildAlwaysSurvey(): GeneratedSurvey {
   return {
-    subject: `[${companyName}] ${topicLabel} — ${stepLabel} 단계 뉴스레터 🚀`,
-    headline: `${leadershipType} 리더를 위한 ${topicLabel} 가이드`,
-    intro: `안녕하세요! 오늘은 ${topicLabel}에 대해 이야기해볼게요. 🙌 리더십을 바꾸는 건 거창한 결심이 아니라, 오늘 하루의 작은 실천에서 시작됩니다. 함께 살펴볼까요?`,
-    sections: round.contents.length > 0
-      ? round.contents.slice(0, 4).map((c, i) => ({
-          contentTitle: c.title,
-          contentId: c.id,
-          summary: `${c.title}에서는 ${leadershipType} 리더가 실무에서 바로 적용할 수 있는 핵심 인사이트를 다룹니다. 실제 사례와 함께 변화의 첫 걸음을 제안합니다.`,
-          keyTakeaway: `💡 ${['작은 변화가 팀 전체를 바꿉니다.', '신뢰는 하루아침에 쌓이지 않지만, 하루만에 무너질 수 있어요.', '피드백은 선물입니다. 주는 것도, 받는 것도 연습이 필요해요.', '리더의 말 한 마디가 팀의 심리적 안전감을 좌우합니다.'][i % 4]}`,
-          emoji: ['📖', '🎯', '💡', '🔑'][i % 4],
-        }))
-      : [{
-          contentTitle: `${topicLabel} 핵심 정리`,
-          contentId: 'mock-1',
-          summary: `${stepLabel} 단계에서 ${leadershipType} 리더가 집중해야 할 핵심 포인트를 정리했습니다. 실무에서 바로 쓸 수 있는 액션 아이템과 함께 전달드립니다.`,
-          keyTakeaway: '💡 오늘 하나만 실천해 보세요. 그 하나가 팀을 바꿉니다.',
-          emoji: '📖',
-        }],
-    interactionText: round.interactions.length > 0
-      ? `이번 호에는 ${round.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(', ')} 활동이 준비되어 있어요! 5분이면 충분합니다. 지금 바로 참여해 보세요. 👇`
-      : '이번 호 내용을 읽고 나서 팀에 어떻게 적용할지 한 줄로 적어보세요. 작은 메모가 큰 변화를 만듭니다. 📝',
-    closing: `${stepLabel} 단계의 여정을 함께해 주셔서 감사합니다. 오늘도 한 걸음 성장하는 리더가 되실 거라 믿어요. 다음 호에서 또 만나요! 💙`,
+    type: 'always',
+    questions: [{
+      type: 'rating',
+      options: ['별로예요', '좋아요', '최고예요'],
+      followUp: '어떤 점이 좋았나요?',
+      followUpOptions: ['내용이 유익했어요', '읽기 편했어요', '실무에 바로 쓸 수 있어요', '새로운 시각을 얻었어요'],
+      openQuestion: '가장 좋았던 콘텐츠는 무엇이었나요?',
+    }],
   };
 }
 
-export async function POST(req: NextRequest) {
-  const { round, leadershipType, companyName } = await req.json() as {
-    round: RoundPayload;
-    leadershipType: string;
-    companyName: string;
+function buildPeriodicSurvey(): GeneratedSurvey {
+  return {
+    type: 'periodic',
+    questions: [
+      { type: 'scale', question: '이 뉴스레터가 전반적으로 만족스러우셨나요?', scale: 5 },
+      { type: 'scale', question: '콘텐츠가 업무에 도움이 되었나요?', scale: 5 },
+      { type: 'multiple', question: '가장 유익했던 콘텐츠 유형은?', options: ['아티클', '인터뷰', '책 추천', '성공 사례', '카드뉴스', '웹툰'] },
+      { type: 'multiple', question: '인터랙션 활동 중 가장 좋았던 것은?', options: ['퀴즈', '선택형 시나리오', '셀프 진단', '회고 질문', "Do&Don't"] },
+      { type: 'scale', question: '뉴스레터 분량이 적절했나요?', scale: 5 },
+      { type: 'open', question: '개선되었으면 하는 점이 있다면 자유롭게 적어주세요.' },
+    ],
   };
+}
 
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(makeMockResponse(round, leadershipType, companyName));
+// ── 인터랙션 스키마 프롬프트 생성 ─────────────────────────────────────
+function buildInteractionPrompt(types: string[]): string {
+  const parts: string[] = [];
+  if (types.includes('quiz')) {
+    parts.push(`{"type":"quiz","title":"이번 주 퀴즈","content":{"question":"주제 관련 퀴즈 질문 1개","options":["선택지1","선택지2","선택지3","선택지4"],"answer":0}}`);
   }
+  if (types.includes('scenario')) {
+    parts.push(`{"type":"scenario","title":"이런 상황이라면?","content":{"situation":"상황 설명 2~3문장","options":[{"label":"선택지 A","result":"이 선택의 결과/피드백"},{"label":"선택지 B","result":"이 선택의 결과/피드백"},{"label":"선택지 C","result":"이 선택의 결과/피드백"}]}}`);
+  }
+  if (types.includes('selfcheck')) {
+    parts.push(`{"type":"selfcheck","title":"셀프 체크리스트","content":{"items":["항목1","항목2","항목3","항목4","항목5"]}}`);
+  }
+  if (types.includes('reflection')) {
+    parts.push(`{"type":"reflection","title":"오늘의 성찰 질문","content":{"questions":["성찰 질문1","성찰 질문2","성찰 질문3"]}}`);
+  }
+  if (types.includes('dodont')) {
+    parts.push(`{"type":"dodont","title":"Do & Don't","content":{"do":["실천항목1","실천항목2","실천항목3"],"dont":["금지항목1","금지항목2","금지항목3"]}}`);
+  }
+  return parts.join(',\n    ');
+}
 
-  const contentSummary = round.contents.length > 0
-    ? round.contents.map((c, i) => `${i + 1}. "${c.title}"${c.tags?.length ? ` (태그: ${c.tags.join(', ')})` : ''}`).join('\n')
-    : '(콘텐츠 미선정)';
+// ── POST 핸들러 ───────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const { round, leadershipType, companyName } = await req.json() as {
+      round: RoundPayload;
+      leadershipType: string;
+      companyName: string;
+    };
 
-  const interactionList = round.interactions.length > 0
-    ? round.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(', ')
-    : '없음';
+    const contentSummary = round.contents.length > 0
+      ? round.contents.map((c, i) =>
+          `[${i + 1}] ID:${c.id} 제목:"${c.title}"\n본문: ${(c.body ?? '').slice(0, 800)}`
+        ).join('\n\n')
+      : '(콘텐츠 미선정)';
 
-  const prompt = `당신은 뉴닉 스타일의 B2B 리더십 코칭 뉴스레터 작가입니다.
+    const hasInteractions = round.interactions.length > 0;
+    const interactionSchema = hasInteractions ? buildInteractionPrompt(round.interactions) : '';
+
+    const prompt = `당신은 뉴닉 스타일의 B2B 리더십 코칭 뉴스레터 작가입니다.
 아래 정보를 바탕으로 뉴스레터 본문을 작성해주세요.
 
-[대상]
+[대상 정보]
 - 기업명: ${companyName}
 - 리더십 유형: ${leadershipType}
 - 스토리라인 단계: ${round.stepLabel}
@@ -103,57 +132,51 @@ export async function POST(req: NextRequest) {
 [이번 호 콘텐츠]
 ${contentSummary}
 
-[인터랙션]
-${interactionList}
-
 [작성 지침]
 - 뉴닉 스타일: 친근하고 재밌되 정제된 말투
+- 리더(독자)에게 직접 말 거는 2인칭 톤 ("여러분", "당신")
 - 이모지 적절히 활용 (과하지 않게)
-- 독자(리더)에게 직접 말 거는 2인칭 톤 ("당신", "여러분")
-- 전체 분량: 4~5분 읽기 (약 1000~1500자)
-- sections는 콘텐츠 수만큼 생성 (콘텐츠 없으면 1개)
-- summary는 2~3문장, keyTakeaway는 한 줄 핵심 교훈
+- sections는 콘텐츠 수만큼 생성 (콘텐츠 없으면 1개, 주제 기반 작성)
+- summary: 콘텐츠 본문을 바탕으로 2~3문장 핵심 요약
+- keyTakeaway: 한 줄 핵심 교훈 (이모지 포함)${hasInteractions ? `
 
-반드시 아래 JSON 형식으로만 응답하세요:
+[인터랙션 생성 — 주제·리더십 유형과 연관된 구체적인 내용으로 작성]
+"interactions" 배열에 아래 구조로 정확히 생성하세요:
+${interactionSchema}` : ''}
+
+반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 포함 금지:
 {
   "subject": "이메일 제목 (흥미롭게, 이모지 포함)",
   "headline": "핵심 한 줄 헤드라인",
-  "intro": "도입부 2~3문장 (흥미 유발)",
+  "intro": "도입부 2~3문장 (흥미 유발, 이모지 활용)",
   "sections": [
     {
       "contentTitle": "콘텐츠 제목",
-      "contentId": "콘텐츠 id (없으면 임의 string)",
+      "contentId": "콘텐츠 id",
       "summary": "2~3문장 핵심 요약",
       "keyTakeaway": "한 줄 핵심 교훈",
       "emoji": "섹션 대표 이모지 1개"
     }
   ],
-  "interactionText": "인터랙션 안내 문구 (1~2문장)",
-  "closing": "마무리 문구 (따뜻하게, 1~2문장)"
+  "interactions": [${hasInteractions ? `\n    ${interactionSchema}\n  ` : ''}],
+  "closing": "마무리 문구 (따뜻하게, 1~2문장, 이모지 포함)"
 }`;
 
-  try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-        temperature: 0.85,
-      }),
-    });
+    const raw = await callClaude(prompt);
 
-    if (!res.ok) throw new Error(`OpenAI API error: ${res.status}`);
+    const jsonStart = raw.indexOf('{');
+    const jsonEnd = raw.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) throw new Error('JSON 파싱 실패');
 
-    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-    const parsed = JSON.parse(data.choices[0].message.content) as GeneratedNewsletter;
-    return NextResponse.json(parsed);
+    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Omit<GeneratedNewsletter, 'surveys'>;
+
+    const surveys: GeneratedSurvey[] = round.surveys.map(s =>
+      s === 'always' ? buildAlwaysSurvey() : buildPeriodicSurvey()
+    );
+
+    return NextResponse.json({ ...parsed, surveys } satisfies GeneratedNewsletter);
   } catch (err) {
-    console.error('Newsletter generate error:', err);
-    return NextResponse.json(makeMockResponse(round, leadershipType, companyName));
+    console.error('[newsletter/generate]', err);
+    return NextResponse.json({ error: '뉴스레터 생성 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }

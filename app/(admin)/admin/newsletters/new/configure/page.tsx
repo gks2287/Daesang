@@ -22,6 +22,31 @@ type GeneratedNewsletterSection = {
   summary: string;
   keyTakeaway: string;
   emoji: string;
+  youtubeUrl?: string;
+};
+
+type GeneratedInteraction = {
+  type: 'quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont';
+  title: string;
+  content: Record<string, unknown>;
+};
+
+type AlwaysSurveyQuestion = {
+  type: 'rating';
+  options: string[];
+  followUp: string;
+  followUpOptions: string[];
+  openQuestion: string;
+};
+
+type PeriodicSurveyQuestion =
+  | { type: 'scale'; question: string; scale: number }
+  | { type: 'multiple'; question: string; options: string[] }
+  | { type: 'open'; question: string };
+
+type GeneratedSurvey = {
+  type: 'always' | 'periodic';
+  questions: (AlwaysSurveyQuestion | PeriodicSurveyQuestion)[];
 };
 
 type GeneratedNewsletter = {
@@ -29,7 +54,8 @@ type GeneratedNewsletter = {
   headline: string;
   intro: string;
   sections: GeneratedNewsletterSection[];
-  interactionText: string;
+  interactions: GeneratedInteraction[];
+  surveys: GeneratedSurvey[];
   closing: string;
 };
 
@@ -1966,9 +1992,9 @@ function ConfigureContent() {
                   </div>
                 </div>
 
-                {/* C: 회차별 뉴스레터 첫 면 프리뷰 */}
+                {/* C: 뉴스레터 프리뷰 */}
                 <div>
-                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">회차별 뉴스레터 첫 면 프리뷰</h3>
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">뉴스레터 PREVIEW</h3>
                   {/* 회차 탭 */}
                   <div className="flex gap-1.5 overflow-x-auto pb-2 flex-nowrap mb-4">
                     {rounds.map((_, idx) => (
@@ -2062,104 +2088,339 @@ function ConfigureContent() {
 
                         {/* 이메일 미리보기 탭 */}
                         {contentTab === 'email' && (
-                          <div className="bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden max-w-md mx-auto">
-                            {/* 로고 + 날짜 */}
-                            <div className="bg-gray-800 px-6 py-4 flex items-center justify-between">
-                              <div>
-                                <p className="text-white font-black text-base tracking-widest">J& COMPANY</p>
-                                <p className="text-gray-400 text-[11px] mt-0.5">리더십 다면진단 후속 코칭</p>
+                          <div style={{ backgroundColor: '#F0F7FF' }} className="rounded-2xl overflow-hidden max-w-md mx-auto shadow-md border border-[#D6EAF8]">
+                            {/* 헤더 */}
+                            <div className="px-5 py-3.5 flex items-center justify-between bg-white border-b border-[#D6EAF8]">
+                              <div className="flex items-center gap-2">
+                                <img src="/logo-jc.png" alt="J&Company" className="h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <span className="text-sm font-black text-gray-800 tracking-wider">J&COMPANY</span>
                               </div>
                               <div className="text-right">
-                                <p className="text-gray-400 text-[11px]">Vol.{previewTab + 1}</p>
-                                {schedDate && (
-                                  <p className="text-gray-500 text-[10px] mt-0.5">{formatKoreanDate(schedDate)}</p>
-                                )}
+                                <p className="text-[11px] text-gray-400">Vol.{previewTab + 1}</p>
+                                {schedDate && <p className="text-[10px] text-gray-400 mt-0.5">{formatKoreanDate(schedDate)}</p>}
                               </div>
                             </div>
-                            {/* 썸네일 */}
-                            {firstThumbnail && (
-                              <div className="w-full h-36 overflow-hidden bg-gray-100">
-                                <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
-                              </div>
-                            )}
-                            {/* 헤드라인 + 인트로 */}
-                            <div className="px-6 pt-5 pb-4">
-                              <p className="text-base font-black text-gray-800 leading-snug mb-2">{generated.headline}</p>
+                            {/* 히어로 — 썸네일 + 헤드라인 (클릭 시 전체 본문으로) */}
+                            <div
+                              className="relative cursor-pointer"
+                              onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
+                            >
+                              {firstThumbnail ? (
+                                <div className="relative w-full h-44 overflow-hidden">
+                                  <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                                  <p className="absolute bottom-0 left-0 right-0 px-5 pb-4 text-base font-black text-white leading-snug">{generated.headline}</p>
+                                </div>
+                              ) : (
+                                <div className="relative w-full h-44 bg-gradient-to-br from-[#2B9EE8] to-[#1a6fad] flex items-end px-5 pb-4">
+                                  <p className="text-base font-black text-white leading-snug">{generated.headline}</p>
+                                </div>
+                              )}
+                            </div>
+                            {/* 인트로 */}
+                            <div className="px-5 pt-4 pb-3">
                               <p className="text-xs text-gray-600 leading-relaxed">{generated.intro}</p>
                             </div>
-                            {/* 섹션 카드 그리드 */}
-                            <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-                              {generated.sections.map(sec => (
-                                <div key={sec.contentId} className="bg-gray-50 rounded-xl p-3 space-y-1.5">
-                                  <p className="text-lg leading-none">{sec.emoji}</p>
-                                  <p className="text-xs font-bold text-gray-800 leading-snug">{sec.contentTitle}</p>
-                                  <p className="text-[11px] text-gray-500 leading-relaxed">{sec.summary}</p>
-                                  <div className="border-t border-gray-200 pt-1.5">
-                                    <p className="text-[11px] font-semibold text-[#55A4DA] leading-snug">{sec.keyTakeaway}</p>
+                            <div className="mx-5 border-t border-[#D6EAF8]" />
+                            {/* 이번 호 내용 */}
+                            <div className="px-5 py-4">
+                              <p className="text-xs font-bold text-gray-700 mb-3">이번 호에서 다루는 내용 👇</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {generated.sections.map(sec => (
+                                  <div key={sec.contentId} className="bg-white rounded-xl p-3 border border-[#D6EAF8] space-y-1.5 flex flex-col">
+                                    <p className="text-base leading-none">{sec.emoji}</p>
+                                    <p className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{sec.contentTitle}</p>
+                                    <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 flex-1">{sec.summary}</p>
+                                    <div className="border-t border-gray-100 pt-1.5">
+                                      <p className="text-[11px] text-[#2B9EE8] font-semibold leading-snug line-clamp-1">{sec.keyTakeaway}</p>
+                                    </div>
+                                    <button
+                                      onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
+                                      className="text-[10px] text-[#2B9EE8] font-bold text-left"
+                                    >
+                                      자세히 →
+                                    </button>
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
                             </div>
-                            {/* 인터랙션 */}
-                            <div className="mx-4 mb-4 bg-[#55A4DA]/5 border border-[#55A4DA]/20 rounded-xl px-4 py-3">
-                              <p className="text-xs text-gray-700 mb-2 leading-relaxed">{generated.interactionText}</p>
-                              <button className="text-xs font-bold text-[#55A4DA]">참여하기 →</button>
+                            <div className="mx-5 border-t border-[#D6EAF8]" />
+                            {/* CTA */}
+                            <div className="px-5 py-4">
+                              <button
+                                onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
+                                className="w-full py-2.5 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                              >
+                                ✨ 전체 뉴스레터 읽기 →
+                              </button>
                             </div>
-                            {/* 클로징 */}
-                            <div className="px-6 pb-6 border-t border-gray-100 pt-4">
-                              <p className="text-xs text-gray-500 leading-relaxed">{generated.closing}</p>
-                              <p className="text-[11px] text-gray-400 mt-2 font-semibold">J&Company 코칭팀</p>
+                            <div className="mx-5 border-t border-[#D6EAF8]" />
+                            {/* 푸터 */}
+                            <div className="px-5 py-3 flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-gray-600">J&Company 코칭팀</span>
+                              <div className="flex gap-3">
+                                <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">수신거부</span>
+                                <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">문의하기</span>
+                              </div>
                             </div>
                           </div>
                         )}
 
                         {/* 전체 본문 탭 */}
                         {contentTab === 'full' && (
-                          <div className="bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden max-w-2xl mx-auto">
-                            <div className="bg-gray-800 px-6 py-3 flex items-center justify-between">
-                              <p className="text-white font-black text-sm tracking-widest">J& COMPANY</p>
-                              <p className="text-gray-400 text-[11px]">Vol.{previewTab + 1} · {schedDate ? formatKoreanDate(schedDate) : '—'}</p>
-                            </div>
-                            <div className="px-7 py-6 space-y-6">
-                              {/* 제목 */}
-                              <div>
-                                <p className="text-[11px] text-[#55A4DA] font-bold uppercase tracking-widest mb-1">이번 호 제목</p>
-                                <p className="text-lg font-black text-gray-800 leading-snug">{generated.subject}</p>
+                          <div style={{ backgroundColor: '#F0F7FF' }} className="rounded-2xl overflow-hidden max-w-2xl mx-auto shadow-md border border-[#D6EAF8]">
+                            {/* 헤더 */}
+                            <div className="px-6 py-3.5 flex items-center justify-between bg-white border-b border-[#D6EAF8]">
+                              <div className="flex items-center gap-2">
+                                <img src="/logo-jc.png" alt="J&Company" className="h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <span className="text-sm font-black text-gray-800 tracking-wider">J&COMPANY</span>
                               </div>
-                              <div className="border-t border-gray-100" />
+                              <div className="text-right">
+                                <p className="text-[11px] text-gray-400">Vol.{previewTab + 1} · {schedDate ? formatKoreanDate(schedDate) : '—'}</p>
+                                {leadershipTypes.length > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{leadershipTypes.join(', ')}</p>}
+                              </div>
+                            </div>
+                            {/* 히어로 */}
+                            <div className="relative w-full h-44 overflow-hidden">
+                              {firstThumbnail ? (
+                                <>
+                                  <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                                </>
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-[#2B9EE8] to-[#1a6fad]" />
+                              )}
+                              <div className="absolute bottom-0 left-0 right-0 px-6 pb-3">
+                                <p className="text-[10px] text-white/60 mb-0.5 uppercase tracking-widest">이번 호 제목</p>
+                                <p className="text-sm font-black text-white leading-snug">{generated.subject}</p>
+                              </div>
+                            </div>
+                            <div className="px-6 py-6 space-y-5">
                               {/* 헤드라인 + 인트로 */}
-                              <div>
-                                <p className="text-base font-black text-gray-800 mb-2">{generated.headline}</p>
+                              <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
+                                <p className="text-base font-black text-gray-800 leading-snug mb-2">{generated.headline}</p>
                                 <p className="text-sm text-gray-600 leading-relaxed">{generated.intro}</p>
                               </div>
-                              <div className="border-t border-gray-100" />
+                              {/* CONTENTS 구분 */}
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 border-t border-[#D6EAF8]" />
+                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CONTENTS</span>
+                                <div className="flex-1 border-t border-[#D6EAF8]" />
+                              </div>
                               {/* 섹션별 본문 */}
-                              {generated.sections.map((sec, i) => (
-                                <div key={sec.contentId}>
-                                  <div className="flex items-start gap-3 mb-2">
-                                    <span className="text-2xl flex-shrink-0">{sec.emoji}</span>
-                                    <div>
-                                      <p className="text-sm font-black text-gray-800 leading-snug">{sec.contentTitle}</p>
-                                    </div>
+                              {generated.sections.map(sec => (
+                                <div key={sec.contentId} className="bg-white rounded-2xl p-5 border border-[#D6EAF8] space-y-3">
+                                  <div className="flex items-start gap-3">
+                                    <span className="text-2xl flex-shrink-0 mt-0.5">{sec.emoji}</span>
+                                    <p className="text-sm font-black text-gray-800 leading-snug">{sec.contentTitle}</p>
                                   </div>
-                                  <p className="text-sm text-gray-600 leading-relaxed mb-3">{sec.summary}</p>
-                                  <div className="bg-[#55A4DA]/5 border-l-4 border-[#55A4DA] px-4 py-2.5 rounded-r-xl">
-                                    <p className="text-xs font-bold text-[#55A4DA] mb-0.5">핵심 교훈</p>
+                                  <p className="text-sm text-gray-600 leading-relaxed">{sec.summary}</p>
+                                  <div className="bg-[#F0FDF4] border border-emerald-200 rounded-xl px-4 py-3">
+                                    <p className="text-[11px] font-bold text-emerald-700 mb-0.5">💡 핵심 포인트</p>
                                     <p className="text-sm text-gray-700 leading-relaxed">{sec.keyTakeaway}</p>
                                   </div>
-                                  {i < generated.sections.length - 1 && <div className="border-t border-gray-100 mt-4" />}
+                                  {sec.youtubeUrl && (
+                                    <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                                      <iframe src={sec.youtubeUrl} className="w-full h-full" allowFullScreen title={sec.contentTitle} />
+                                    </div>
+                                  )}
                                 </div>
                               ))}
-                              <div className="border-t border-gray-100" />
-                              {/* 인터랙션 */}
-                              <div className="bg-gray-50 rounded-xl px-5 py-4">
-                                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">🎯 이번 호 과제</p>
-                                <p className="text-sm text-gray-700 leading-relaxed">{generated.interactionText}</p>
-                              </div>
+                              {/* INTERACTION 구분 */}
+                              {generated.interactions.length > 0 && (
+                                <>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 border-t border-[#D6EAF8]" />
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">INTERACTION</span>
+                                    <div className="flex-1 border-t border-[#D6EAF8]" />
+                                  </div>
+                                  {generated.interactions.map((ia, idx) => {
+                                    if (ia.type === 'quiz') {
+                                      const c = ia.content as { question: string; options: string[]; answer: number };
+                                      return (
+                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                                          <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <p className="text-sm text-gray-700 leading-relaxed">{c.question}</p>
+                                          <div className="space-y-2">
+                                            {(c.options ?? []).map((opt, i) => (
+                                              <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700">
+                                                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />{opt}
+                                              </div>
+                                            ))}
+                                          </div>
+                                          <button className="text-xs font-bold text-[#2B9EE8] hover:underline">정답 확인하기 →</button>
+                                        </div>
+                                      );
+                                    }
+                                    if (ia.type === 'scenario') {
+                                      const c = ia.content as { situation: string; options: { label: string; result: string }[] };
+                                      return (
+                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                                          <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <p className="text-sm text-gray-700 leading-relaxed">{c.situation}</p>
+                                          <div className="space-y-2">
+                                            {(c.options ?? []).map((opt, i) => (
+                                              <button key={i} className="w-full text-left px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700 hover:bg-blue-50 transition-colors">{opt.label}</button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    if (ia.type === 'selfcheck') {
+                                      const c = ia.content as { items: string[] };
+                                      return (
+                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                                          <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <div className="space-y-2">
+                                            {(c.items ?? []).map((item, i) => (
+                                              <div key={i} className="flex items-start gap-2.5">
+                                                <div className="w-4 h-4 rounded border-2 border-blue-300 flex-shrink-0 mt-0.5 bg-white" />
+                                                <p className="text-sm text-gray-700">{item}</p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    if (ia.type === 'reflection') {
+                                      const c = ia.content as { questions: string[] };
+                                      return (
+                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                                          <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <div className="space-y-2">
+                                            {(c.questions ?? []).map((q, i) => (
+                                              <div key={i} className="bg-white rounded-xl px-4 py-3 border border-blue-100">
+                                                <p className="text-[11px] font-bold text-[#2B9EE8] mb-0.5">Q{i + 1}</p>
+                                                <p className="text-sm text-gray-700">{q}</p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    if (ia.type === 'dodont') {
+                                      const c = ia.content as { do: string[]; dont: string[] };
+                                      return (
+                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                                          <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-white rounded-xl p-3 border border-emerald-200">
+                                              <p className="text-xs font-bold text-emerald-600 mb-2">✅ Do</p>
+                                              <ul className="space-y-1.5">
+                                                {(c.do ?? []).map((item, i) => (
+                                                  <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-emerald-500 flex-shrink-0 mt-0.5">•</span>{item}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                            <div className="bg-white rounded-xl p-3 border border-red-200">
+                                              <p className="text-xs font-bold text-red-500 mb-2">❌ Don't</p>
+                                              <ul className="space-y-1.5">
+                                                {(c.dont ?? []).map((item, i) => (
+                                                  <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-red-400 flex-shrink-0 mt-0.5">•</span>{item}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })}
+                                </>
+                              )}
+                              {/* SURVEY 구분 */}
+                              {generated.surveys.length > 0 && (
+                                <>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 border-t border-[#D6EAF8]" />
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">SURVEY</span>
+                                    <div className="flex-1 border-t border-[#D6EAF8]" />
+                                  </div>
+                                  {generated.surveys.map((survey, idx) => {
+                                    if (survey.type === 'always') {
+                                      const q = survey.questions[0] as { type: 'rating'; options: string[]; followUp: string; followUpOptions: string[]; openQuestion: string };
+                                      return (
+                                        <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-4">
+                                          <p className="text-sm font-bold text-gray-800">📊 이번 뉴스레터 어떠셨나요?</p>
+                                          <div className="flex gap-2">
+                                            {(q.options ?? []).map((opt, i) => (
+                                              <button key={i} className="flex-1 flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-amber-200 hover:bg-amber-50 transition-colors">
+                                                <span className="text-xl">{['😐', '😊', '🤩'][i]}</span>
+                                                <span className="text-[10px] text-gray-600">{opt}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-gray-700 mb-2">{q.followUp}</p>
+                                            <div className="space-y-1.5">
+                                              {(q.followUpOptions ?? []).map((opt, i) => (
+                                                <div key={i} className="flex items-center gap-2">
+                                                  <div className="w-4 h-4 rounded border-2 border-amber-300 flex-shrink-0 bg-white" />
+                                                  <p className="text-xs text-gray-700">{opt}</p>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <p className="text-xs font-semibold text-gray-700 mb-1.5">{q.openQuestion}</p>
+                                            <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    if (survey.type === 'periodic') {
+                                      const questions = survey.questions as PeriodicSurveyQuestion[];
+                                      return (
+                                        <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-5">
+                                          <p className="text-sm font-bold text-gray-800">📊 정기 만족도 조사</p>
+                                          {questions.map((q, i) => (
+                                            <div key={i}>
+                                              <p className="text-xs font-semibold text-gray-700 mb-2">Q{i + 1}. {q.question}</p>
+                                              {q.type === 'scale' && (
+                                                <div>
+                                                  <div className="flex gap-1">
+                                                    {Array.from({ length: q.scale }, (_, n) => (
+                                                      <button key={n} className="flex-1 py-1.5 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{n + 1}</button>
+                                                    ))}
+                                                  </div>
+                                                  <div className="flex justify-between mt-1">
+                                                    <span className="text-[10px] text-gray-400">매우 불만족</span>
+                                                    <span className="text-[10px] text-gray-400">매우 만족</span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {q.type === 'multiple' && (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                  {q.options.map((opt, j) => (
+                                                    <button key={j} className="px-3 py-1 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{opt}</button>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              {q.type === 'open' && (
+                                                <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
+                                              )}
+                                            </div>
+                                          ))}
+                                          <button className="w-full py-2.5 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors">제출하기</button>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })}
+                                </>
+                              )}
                               {/* 클로징 */}
-                              <div className="border-t border-gray-100 pt-4">
-                                <p className="text-sm text-gray-500 leading-relaxed italic">{generated.closing}</p>
-                                <p className="text-xs text-gray-400 mt-2 font-semibold">J&Company 코칭팀 드림</p>
+                              <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
+                                <p className="text-sm text-gray-600 leading-relaxed italic mb-2">{generated.closing}</p>
+                                <p className="text-xs text-gray-400 font-semibold">J&Company 코칭팀 드림</p>
+                              </div>
+                              {/* 푸터 */}
+                              <div className="flex items-center justify-between pb-1">
+                                <img src="/logo-jc.png" alt="J&Company" className="h-5 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                <div className="flex gap-3">
+                                  <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">수신거부</span>
+                                  <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">문의하기</span>
+                                </div>
                               </div>
                             </div>
                           </div>
