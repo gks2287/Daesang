@@ -639,7 +639,7 @@ function PreviewPanel({ item, onClose }: { item: ContentPoolItem; onClose: () =>
 
   return (
     <div
-      className={`fixed top-0 right-0 h-full z-40 w-[480px] flex flex-col bg-[#EFEFEF] shadow-2xl transition-transform duration-300 ease-out ${
+      className={`fixed top-0 right-0 h-full z-40 w-1/2 flex flex-col bg-[#EFEFEF] shadow-2xl transition-transform duration-300 ease-out ${
         visible ? 'translate-x-0' : 'translate-x-full'
       }`}
     >
@@ -794,8 +794,7 @@ function ContentCard({
 
   return (
     <div
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-[#55A4DA]/40 transition-all overflow-hidden group cursor-pointer"
-      onClick={() => onPreview(item)}
+      className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-[#55A4DA]/40 transition-all overflow-hidden group"
     >
       {/* 썸네일 */}
       <div className="relative aspect-video bg-gray-100 overflow-hidden">
@@ -855,267 +854,18 @@ function ContentCard({
             <span className="text-[10px] text-gray-400 px-1.5 py-0.5">+{extraTags}</span>
           )}
         </div>
-        <div className="pt-1 border-t border-gray-100">
+        <div className="pt-1 border-t border-gray-100 flex items-center justify-between">
           <span className="text-[11px] text-gray-400">{item.createdAt}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── CurationMethodModal (1단계: 등록 방식 선택) ──────────────────
-function CurationMethodModal({
-  onSelect,
-  onClose,
-}: {
-  onSelect: (method: 'ai' | 'manual') => void;
-  onClose: () => void;
-}) {
-  const [method, setMethod] = useState<'ai' | 'manual'>('ai');
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
-  }, []);
-
-  function handleClose() {
-    setVisible(false);
-    setTimeout(onClose, 200);
-  }
-
-  const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
-      <div
-        className={`relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-200 ease-out ${
-          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-        }`}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-base font-bold text-gray-800">콘텐츠 등록 방식 선택</h2>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button
+            onClick={() => onPreview(item)}
+            title="요약본 보기"
+            className="w-8 h-8 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center text-gray-500 hover:bg-[#55A4DA] hover:text-white hover:border-[#55A4DA] transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </button>
         </div>
-
-        <div className="p-6 space-y-3">
-          {/* AI 자동 수집 */}
-          <div
-            onClick={() => setMethod('ai')}
-            className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-              method === 'ai' ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex-shrink-0 flex items-center justify-center transition-colors ${
-              method === 'ai' ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-            }`}>
-              {method === 'ai' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-800">AI 자동 수집</p>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                키워드나 주제를 입력하면 AI가 콘텐츠를 찾아 자동 입력해드립니다.
-              </p>
-            </div>
-          </div>
-
-          {/* 직접 입력 */}
-          <div
-            onClick={() => setMethod('manual')}
-            className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-              method === 'manual' ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <div className={`w-4 h-4 rounded-full border-2 mt-0.5 flex-shrink-0 flex items-center justify-center transition-colors ${
-              method === 'manual' ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-            }`}>
-              {method === 'manual' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-800">직접 입력</p>
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                콘텐츠 정보를 직접 입력합니다.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end flex-shrink-0">
-          <button
-            onClick={handleClose}
-            className={inputCls.replace('w-full', 'px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors')}
-          >
-            취소
-          </button>
-          <button
-            onClick={() => onSelect(method)}
-            className="px-5 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors shadow-sm"
-          >
-            다음 →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── CurationTopicModal (2단계: 주제 입력 + 로딩) ─────────────────
-function CurationTopicModal({
-  onBack,
-  onClose,
-  onComplete,
-}: {
-  onBack: () => void;
-  onClose: () => void;
-  onComplete: (result: CuratedResult) => void;
-}) {
-  const [topic, setTopic] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [visible, setVisible] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
-    return () => { abortRef.current?.abort(); };
-  }, []);
-
-  function handleClose() {
-    abortRef.current?.abort();
-    setVisible(false);
-    setTimeout(onClose, 200);
-  }
-
-  async function handleStart() {
-    setStatus('loading');
-    setError(null);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const res = await fetch('/api/curate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topic.trim() || undefined }),
-        signal: controller.signal,
-      });
-      const json = (await res.json()) as { data?: CuratedResult; error?: string };
-      if (!res.ok || !json.data) {
-        setError(json.error ?? '수집에 실패했습니다. 다시 시도해주세요.');
-        setStatus('error');
-        return;
-      }
-      onComplete(json.data);
-    } catch (e) {
-      if ((e as Error).name === 'AbortError') {
-        setStatus('idle');
-        return;
-      }
-      setError('수집 중 오류가 발생했습니다. 다시 시도해주세요.');
-      setStatus('error');
-    } finally {
-      abortRef.current = null;
-    }
-  }
-
-  const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white';
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={status === 'loading' ? undefined : handleClose} />
-      <div
-        className={`relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-200 ease-out ${
-          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-        }`}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-base font-bold text-gray-800">AI 자동 수집</h2>
-          {status !== 'loading' && (
-            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        <div className="p-6">
-          {status === 'loading' ? (
-            <div className="flex flex-col items-center gap-4 py-4 text-center">
-              <div className="w-14 h-14 rounded-full bg-[#55A4DA]/10 flex items-center justify-center">
-                <svg className="w-7 h-7 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-gray-800">AI가 콘텐츠를 수집 중입니다...</p>
-                {topic && (
-                  <p className="text-xs text-gray-500">
-                    주제: <span className="font-semibold text-[#55A4DA]">{topic}</span>
-                  </p>
-                )}
-                {!topic && (
-                  <p className="text-xs text-gray-400">주제를 자동으로 선정하고 있습니다.</p>
-                )}
-              </div>
-              <button
-                onClick={() => { abortRef.current?.abort(); }}
-                className="text-xs text-gray-400 hover:text-red-400 underline transition-colors mt-1"
-              >
-                취소
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                  주제 또는 키워드
-                </label>
-                <input
-                  className={inputCls}
-                  value={topic}
-                  onChange={e => setTopic(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleStart(); }}
-                  placeholder="예: 리더십, 조직문화, 성과관리..."
-                  autoFocus
-                />
-                <p className="text-xs text-gray-400 mt-1.5">비워두면 AI가 자동으로 주제를 선정합니다.</p>
-              </div>
-              {error && (
-                <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {error}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {status !== 'loading' && (
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              이전
-            </button>
-            <button
-              onClick={handleStart}
-              className="px-5 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors shadow-sm"
-            >
-              수집 시작
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1137,9 +887,6 @@ export default function ContentPage() {
   const [deleteTarget, setDeleteTarget] = useState<ContentPoolItem | null>(null);
   const [previewItem, setPreviewItem] = useState<ContentPoolItem | null>(null);
 
-  // ── 큐레이션 등록 방식 ──
-  const [curationStep, setCurationStep] = useState<null | 'method' | 'topic'>(null);
-
   const refresh = () => getContentList().then(setAllItems);
 
   useEffect(() => {
@@ -1149,10 +896,6 @@ export default function ContentPage() {
 
   // 상호 배타적 열기 헬퍼 — 미리보기↔수정모달 동시 열기 방지
   function openCreate(sourceType: ContentSource) {
-    if (sourceType === 'curation') {
-      setCurationStep('method');
-      return;
-    }
     setPreviewItem(null);
     setFormModal({ mode: 'create', sourceType });
   }
@@ -1207,34 +950,11 @@ export default function ContentPage() {
     setDeleteTarget(null);
   }
 
-  function handleCurationComplete(result: CuratedResult) {
-    setCurationStep(null);
-    setPreviewItem(null);
-    setFormModal({
-      mode: 'create',
-      sourceType: 'curation',
-      aiAutoFilled: true,
-      initialSourceUrl: result.sourceUrl,
-      data: {
-        id: '',
-        createdAt: '',
-        type: 'curation',
-        title: result.title,
-        category: result.category,
-        duration: result.duration,
-        author: result.author,
-        tags: result.tags,
-        thumbnail: '',
-        body: result.body,
-      },
-    });
-  }
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── 상단 토퍼 ── */}
-      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
           <span>리더십 코칭 관리</span>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1318,7 +1038,7 @@ export default function ContentPage() {
       </div>
 
       {/* ── 콘텐츠 그리드 ── */}
-      <div className="flex-1 overflow-y-auto bg-[#F8FAFC] px-8 py-6">
+      <div className={`flex-1 overflow-y-auto bg-[#F8FAFC] px-8 py-6 transition-all duration-300 ease-out ${previewItem ? 'pr-[calc(50%+2rem)]' : ''}`}>
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-center text-gray-400">
             <svg className="w-12 h-12 mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1378,30 +1098,6 @@ export default function ContentPage() {
         />
       )}
 
-      {/* ── 큐레이션 등록 방식 선택 ── */}
-      {curationStep === 'method' && (
-        <CurationMethodModal
-          onSelect={method => {
-            if (method === 'ai') {
-              setCurationStep('topic');
-            } else {
-              setCurationStep(null);
-              setPreviewItem(null);
-              setFormModal({ mode: 'create', sourceType: 'curation' });
-            }
-          }}
-          onClose={() => setCurationStep(null)}
-        />
-      )}
-
-      {/* ── 큐레이션 주제 입력 + AI 수집 ── */}
-      {curationStep === 'topic' && (
-        <CurationTopicModal
-          onBack={() => setCurationStep('method')}
-          onClose={() => setCurationStep(null)}
-          onComplete={handleCurationComplete}
-        />
-      )}
     </div>
   );
 }
