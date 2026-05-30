@@ -99,6 +99,10 @@ function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]
       customTypes: [],
       customLeaderIds: [],
       generalLeaderIds: [],
+      customTopic: '',
+      customContents: [],
+      customInteractions: [],
+      customSurveys: [],
     }))
   );
 }
@@ -207,6 +211,7 @@ function ConfigureContent() {
   const [contentPoolQuery, setContentPoolQuery] = useState('');
   const [contentPoolCategoryFilter, setContentPoolCategoryFilter] = useState<ContentCategory | ''>('');
   const [contentPreviewItem, setContentPreviewItem] = useState<ContentPoolItem | null>(null);
+  const [contentTab, setContentTab] = useState<'general' | 'custom'>('general');
   const [contentSuggestLoading, setContentSuggestLoading] = useState<boolean[]>([]);
 
   // ── 4단계: 발송 주기 ──
@@ -369,9 +374,15 @@ function ConfigureContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadershipTypes,
+          leadershipTypes: (() => {
+            const r = rounds[roundIdx];
+            if (r?.newsletterType === '맞춤형' && contentTab === 'custom' && r.customTypes.length > 0) {
+              return r.customTypes;
+            }
+            return ['일반형'];
+          })(),
           companyName: targetCompanies[0]?.name ?? '',
-          kind: '일반형',
+          kind: (rounds[roundIdx]?.newsletterType === '맞춤형' && contentTab === 'custom') ? '맞춤형' : '일반형',
           stepTitle: currentRound ? customStoryline[currentRound.stepIndex]?.title : '',
           roundIndex: roundIdx + 1,
         }),
@@ -454,6 +465,49 @@ function ConfigureContent() {
     );
   }
 
+  function setRoundCustomTopic(roundIdx: number, topic: string) {
+    setRounds(prev => prev.map((r, i) => i !== roundIdx ? r : { ...r, customTopic: topic }));
+  }
+
+  function addCustomContentToRound(item: ContentPoolItem) {
+    setRounds(prev =>
+      prev.map((r, i) =>
+        i !== activeRoundIdx ? r : {
+          ...r,
+          customContents: r.customContents.some(c => c.id === item.id) ? r.customContents : [...r.customContents, item],
+        }
+      )
+    );
+  }
+
+  function removeCustomContentFromRound(roundIdx: number, itemId: string) {
+    setRounds(prev =>
+      prev.map((r, i) =>
+        i !== roundIdx ? r : { ...r, customContents: r.customContents.filter(c => c.id !== itemId) }
+      )
+    );
+  }
+
+  function toggleCustomInteraction(roundIdx: number, val: 'quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont') {
+    setRounds(prev =>
+      prev.map((r, i) => {
+        if (i !== roundIdx) return r;
+        const has = r.customInteractions.includes(val);
+        return { ...r, customInteractions: has ? r.customInteractions.filter(v => v !== val) : [...r.customInteractions, val] };
+      })
+    );
+  }
+
+  function toggleCustomSurvey(roundIdx: number, val: 'always' | 'periodic') {
+    setRounds(prev =>
+      prev.map((r, i) => {
+        if (i !== roundIdx) return r;
+        const has = r.customSurveys.includes(val);
+        return { ...r, customSurveys: has ? r.customSurveys.filter(v => v !== val) : [...r.customSurveys, val] };
+      })
+    );
+  }
+
   async function suggestContentsForRound(roundIdx: number, topic: string) {
     if (!topic.trim()) return;
     setContentSuggestLoading(prev => { const n = [...prev]; n[roundIdx] = true; return n; });
@@ -463,7 +517,13 @@ function ConfigureContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic,
-          leadershipType: leadershipTypes[0] ?? '',
+          leadershipType: (() => {
+            const r = rounds[roundIdx];
+            if (r?.newsletterType === '맞춤형' && contentTab === 'custom' && r.customTypes.length > 0) {
+              return r.customTypes.join(', ');
+            }
+            return '일반형';
+          })(),
           storyStage: customStoryline[rounds[roundIdx]?.stepIndex ?? 0]?.title ?? '',
           existingIds: rounds[roundIdx]?.contents.map(c => c.id) ?? [],
         }),
@@ -607,6 +667,7 @@ function ConfigureContent() {
     setActiveRoundIdx(idx);
     setSuggestions([]);
     setTopicError(null);
+    setContentTab('general');
   }
 
   return (
@@ -996,6 +1057,11 @@ function ConfigureContent() {
               if (!r) return null;
               const s = customStoryline[r.stepIndex];
               const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+              const isCustomTab = contentTab === 'custom' && r.newsletterType === '맞춤형' && r.customTypes.length > 0;
+              const activeTopic = isCustomTab ? r.customTopic : r.topic;
+              const activeContents = isCustomTab ? r.customContents : r.contents;
+              const activeInteractions = isCustomTab ? r.customInteractions : r.interactions;
+              const activeSurveys = isCustomTab ? r.customSurveys : r.surveys;
               return (
                 <div className="space-y-2">
 
@@ -1102,6 +1168,7 @@ function ConfigureContent() {
                                         const generalLeaderIds = selectedParticipants.filter(p => !next.includes(p.leadershipType)).map(p => p.id);
                                         return { ...r, customTypes: next, customLeaderIds, generalLeaderIds };
                                       }));
+                                      if (!isChecked) setContentTab('custom');
                                     }}
                                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border-2 text-left transition-all ${
                                       isChecked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -1149,6 +1216,32 @@ function ConfigureContent() {
                     </div>
                   </div>
 
+                  {/* 맞춤형/일반형 탭 */}
+                  {r.newsletterType === '맞춤형' && r.customTypes.length > 0 && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setContentTab('custom')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                          contentTab === 'custom'
+                            ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]'
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        맞춤형 · {r.customTypes.join('+')} ({r.customLeaderIds.length}명)
+                      </button>
+                      <button
+                        onClick={() => setContentTab('general')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                          contentTab === 'general'
+                            ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]'
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        일반형 (나머지 {r.generalLeaderIds.length}명)
+                      </button>
+                    </div>
+                  )}
+
                   {/* ① 주제 선정 */}
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button
@@ -1157,7 +1250,7 @@ function ConfigureContent() {
                     >
                       <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
-                      {r.topic.trim() ? (
+                      {activeTopic.trim() ? (
                         <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
@@ -1172,33 +1265,35 @@ function ConfigureContent() {
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-5 space-y-4">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-500">이 회차 · 단계에 맞는 주제를 AI가 추천합니다.</p>
+                            <p className="text-xs text-gray-500">
+                              이 회차 · 단계에 맞는 주제를 AI가 추천합니다.
+                            </p>
                             <button
-                              onClick={() => fetchTopicsForRound(activeRoundIdx)}
-                              disabled={isLoadingTopics}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${
-                                isLoadingTopics
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                  : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
-                              }`}
-                            >
-                              {isLoadingTopics ? (
-                                <>
-                                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                  </svg>
-                                  생성 중...
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                  </svg>
-                                  {suggestions.length > 0 ? '다시 추천' : 'AI 추천받기'}
-                                </>
-                              )}
-                            </button>
+                                onClick={() => fetchTopicsForRound(activeRoundIdx)}
+                                disabled={isLoadingTopics}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${
+                                  isLoadingTopics
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
+                                }`}
+                              >
+                                {isLoadingTopics ? (
+                                  <>
+                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                    </svg>
+                                    생성 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    {suggestions.length > 0 ? '다시 추천' : 'AI 추천받기'}
+                                  </>
+                                )}
+                              </button>
                           </div>
                           {topicError && (
                             <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
@@ -1214,14 +1309,18 @@ function ConfigureContent() {
                           {suggestions.length > 0 && (
                             <div className="space-y-2">
                               {suggestions.map((topic, idx) => {
-                                const isSelected = r.topic === topic.title;
+                                const isSelected = activeTopic === topic.title;
                                 return (
                                   <button
                                     key={idx}
                                     onClick={() => {
-                                      setRoundTopic(activeRoundIdx, topic.title);
-                                      if (!rounds[activeRoundIdx]?.contents.length) {
-                                        void suggestContentsForRound(activeRoundIdx, topic.title);
+                                      if (isCustomTab) {
+                                        setRoundCustomTopic(activeRoundIdx, topic.title);
+                                      } else {
+                                        setRoundTopic(activeRoundIdx, topic.title);
+                                        if (!rounds[activeRoundIdx]?.contents.length) {
+                                          void suggestContentsForRound(activeRoundIdx, topic.title);
+                                        }
                                       }
                                     }}
                                     className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
@@ -1246,11 +1345,14 @@ function ConfigureContent() {
                             <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
                             <input
                               type="text"
-                              value={r.topic}
-                              onChange={e => setRoundTopic(activeRoundIdx, e.target.value)}
+                              value={activeTopic}
+                              onChange={e => isCustomTab
+                                ? setRoundCustomTopic(activeRoundIdx, e.target.value)
+                                : setRoundTopic(activeRoundIdx, e.target.value)
+                              }
                               onKeyDown={e => {
-                                if (e.key === 'Enter' && r.topic.trim()) {
-                                  void suggestContentsForRound(activeRoundIdx, r.topic.trim());
+                                if (e.key === 'Enter' && activeTopic.trim() && !isCustomTab) {
+                                  void suggestContentsForRound(activeRoundIdx, activeTopic.trim());
                                 }
                               }}
                               placeholder="뉴스레터 주제를 입력하세요 (Enter로 AI 콘텐츠 추천)"
@@ -1270,8 +1372,8 @@ function ConfigureContent() {
                     >
                       <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
                       <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
-                      {r.contents.length > 0 ? (
-                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.contents.length}개 선택됨</span>
+                      {activeContents.length > 0 ? (
+                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{activeContents.length}개 선택됨</span>
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
                       )}
@@ -1291,7 +1393,7 @@ function ConfigureContent() {
                     <div className={`grid transition-all duration-200 ${openSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
                         <div className="border-t border-gray-100 p-4">
-                          {r.contents.length === 0 && !contentSuggestLoading[activeRoundIdx] ? (
+                          {activeContents.length === 0 && !contentSuggestLoading[activeRoundIdx] ? (
                             <button
                               onClick={openContentPool}
                               className="w-full py-5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors flex flex-col items-center gap-1.5"
@@ -1303,7 +1405,7 @@ function ConfigureContent() {
                             </button>
                           ) : (
                             <div className="space-y-2">
-                              {r.contents.map(item => (
+                              {activeContents.map(item => (
                                 <div key={item.id} className="border border-gray-100 rounded-xl px-3 pt-2.5 pb-2 group bg-gray-50">
                                   <div className="flex items-center gap-3">
                                     {item.thumbnail && (
@@ -1319,7 +1421,10 @@ function ConfigureContent() {
                                       <p className="text-xs font-semibold text-gray-700 truncate">{item.title}</p>
                                     </div>
                                     <button
-                                      onClick={() => removeContentFromRound(activeRoundIdx, item.id)}
+                                      onClick={() => isCustomTab
+                                        ? removeCustomContentFromRound(activeRoundIdx, item.id)
+                                        : removeContentFromRound(activeRoundIdx, item.id)
+                                      }
                                       className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                                     >
                                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1337,7 +1442,7 @@ function ConfigureContent() {
                                   )}
                                 </div>
                               ))}
-                              {contentSuggestLoading[activeRoundIdx] && (
+                              {!isCustomTab && contentSuggestLoading[activeRoundIdx] && (
                                 <div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5">
                                   <svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1361,9 +1466,9 @@ function ConfigureContent() {
                     >
                       <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
-                      {r.interactions.length > 0 ? (
+                      {activeInteractions.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
-                          {r.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}
+                          {activeInteractions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}
                         </span>
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
@@ -1383,11 +1488,14 @@ function ConfigureContent() {
                             { val: 'reflection' as const, label: '회고 질문', desc: '성찰을 유도하는 열린 질문 (예: 이번 주 바꾸고 싶은 내 행동은?)' },
                             { val: 'dodont' as const, label: 'Do & Don\'t 리스트', desc: '해야 할 것과 하지 말아야 할 것을 명확하게 정리한 실천 가이드' },
                           ]).map(({ val, label, desc }) => {
-                            const checked = r.interactions.includes(val);
+                            const checked = activeInteractions.includes(val);
                             return (
                               <button
                                 key={val}
-                                onClick={() => toggleInteraction(activeRoundIdx, val)}
+                                onClick={() => isCustomTab
+                                  ? toggleCustomInteraction(activeRoundIdx, val)
+                                  : toggleInteraction(activeRoundIdx, val)
+                                }
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
                                   checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                 }`}
@@ -1421,9 +1529,9 @@ function ConfigureContent() {
                     >
                       <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
-                      {r.surveys.length > 0 ? (
+                      {activeSurveys.length > 0 ? (
                         <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
-                          {r.surveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}
+                          {activeSurveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}
                         </span>
                       ) : (
                         <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
@@ -1440,11 +1548,14 @@ function ConfigureContent() {
                             { val: 'always' as const, label: '상시 만족도 조사', desc: '매 회차 발송 후 수집' },
                             { val: 'periodic' as const, label: '정기 만족도 조사', desc: '주기적으로 심층 수집' },
                           ]).map(({ val, label, desc }) => {
-                            const checked = r.surveys.includes(val);
+                            const checked = activeSurveys.includes(val);
                             return (
                               <button
                                 key={val}
-                                onClick={() => toggleSurvey(activeRoundIdx, val)}
+                                onClick={() => isCustomTab
+                                  ? toggleCustomSurvey(activeRoundIdx, val)
+                                  : toggleSurvey(activeRoundIdx, val)
+                                }
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
                                   checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                 }`}
@@ -1744,7 +1855,10 @@ function ConfigureContent() {
               ) : (
                 contentPoolItems.map(item => {
                   const currentRound = rounds[activeRoundIdx];
-                  const alreadyAdded = currentRound?.contents.some(c => c.id === item.id) ?? false;
+                  const poolIsCustomTab = contentTab === 'custom' && currentRound?.newsletterType === '맞춤형' && (currentRound?.customTypes.length ?? 0) > 0;
+                  const alreadyAdded = poolIsCustomTab
+                    ? (currentRound?.customContents.some(c => c.id === item.id) ?? false)
+                    : (currentRound?.contents.some(c => c.id === item.id) ?? false);
                   return (
                     <div
                       key={item.id}
@@ -1755,7 +1869,7 @@ function ConfigureContent() {
                       }`}
                     >
                       <div
-                        onClick={() => !alreadyAdded && addContentToRound(item)}
+                        onClick={() => !alreadyAdded && (poolIsCustomTab ? addCustomContentToRound(item) : addContentToRound(item))}
                         className={`flex items-start gap-3 px-4 pt-3 pb-2 ${alreadyAdded ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       >
                         {item.thumbnail && (

@@ -13,6 +13,11 @@ export interface Round {
   customTypes: string[];
   customLeaderIds: number[];
   generalLeaderIds: number[];
+  // 맞춤형 전용 콘텐츠 구성
+  customTopic: string;
+  customContents: ContentPoolItem[];
+  customInteractions: ('quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont')[];
+  customSurveys: ('always' | 'periodic')[];
 }
 
 export interface ContentItem {
