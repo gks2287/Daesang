@@ -155,9 +155,6 @@ function ConfigureContent() {
   const positiveParticipants = selectedParticipants.filter(p => POSITIVE_TYPES.includes(p.leadershipType));
   const negativeParticipants = selectedParticipants.filter(p => NEGATIVE_TYPES.includes(p.leadershipType));
 
-  const [showCompanyModal, setShowCompanyModal] = useState(configDraft.companyIds.length === 0);
-  const [modalCompanySearch, setModalCompanySearch] = useState('');
-
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   function handleCancel() {
@@ -590,7 +587,14 @@ function ConfigureContent() {
   function goNext() {
     if (wizardStep >= 4 || !canGoNext()) return;
     if (wizardStep === 2) {
-      setRounds(makeRoundsFromDistribution(roundDistribution));
+      const newBase = makeRoundsFromDistribution(roundDistribution);
+      const newTotal = newBase.length;
+      setRounds(prev => {
+        if (prev.length === 0) return newBase;
+        if (prev.length >= newTotal) return prev.slice(0, newTotal);
+        const extras = newBase.slice(prev.length);
+        return [...prev, ...extras];
+      });
       setActiveRoundIdx(0);
       setSuggestions([]);
     }
@@ -700,7 +704,7 @@ function ConfigureContent() {
     setActiveRoundIdx(idx);
     setSuggestions([]);
     setTopicError(null);
-    setContentTab('general');
+    setContentTab(rounds[idx]?.newsletterType === '맞춤형' ? 'custom' : 'general');
   }
 
   return (
@@ -745,37 +749,24 @@ function ConfigureContent() {
         </div>
       </div>
 
-      {/* ── 컨텍스트 뱃지 바 ── */}
-      <div className="bg-white border-b border-gray-200 px-8 py-2.5 flex items-center gap-4 flex-shrink-0 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-gray-400">대상 기업</span>
-          <div className="flex gap-1">
-            {targetCompanies.length > 0
-              ? targetCompanies.map(c => (
-                  <span key={c.id} className="font-semibold px-2 py-0.5 bg-[#55A4DA]/10 text-[#55A4DA] rounded-full">
-                    {c.name}
-                  </span>
-                ))
-              : <span className="text-gray-400">—</span>}
-          </div>
-        </div>
-        {leadershipTypes.length > 0 && (
-          <>
-            <div className="w-px h-4 bg-gray-200" />
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">리더십 유형</span>
-              <div className="flex gap-1">
-                {leadershipTypes.map(t => (
-                  <span key={t} className={`font-semibold px-2 py-0.5 rounded-full ${LEADERSHIP_COLOR[t] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+      {/* ── 기업 선택 바 ── */}
+      <div className="bg-white border-b border-gray-200 px-8 py-2.5 flex items-center gap-4 flex-shrink-0">
+        <span className="text-xs text-gray-400 flex-shrink-0">대상 기업</span>
+        <select
+          value={configDraft.companyIds[0] ?? ''}
+          onChange={e => {
+            const id = Number(e.target.value);
+            configDraft.setDraft({ companyIds: id ? [id] : [] });
+          }}
+          className="text-sm font-semibold text-gray-800 border border-gray-200 rounded-lg px-3 py-1 bg-white focus:outline-none focus:border-[#55A4DA] min-w-[160px]"
+        >
+          <option value="">기업을 선택해주세요</option>
+          {companies.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
         <div className="w-px h-4 bg-gray-200" />
-        <span className="text-gray-500">
+        <span className="text-xs text-gray-500">
           대상 리더 <span className="font-semibold text-gray-700">{selectedParticipants.length}명</span>
         </span>
       </div>
@@ -2680,88 +2671,6 @@ function ConfigureContent() {
         );
       })()}
 
-      {/* ── 기업 선택 모달 ── */}
-      {showCompanyModal && (
-        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[80vh]">
-            {/* 헤더 */}
-            <div className="px-6 py-5 border-b border-gray-200 flex-shrink-0">
-              <h2 className="text-base font-bold text-gray-800">대상 기업 선택</h2>
-              <p className="text-xs text-gray-400 mt-1">뉴스레터를 발송할 기업을 선택해주세요.</p>
-            </div>
-            {/* 검색 */}
-            <div className="px-6 pt-4 pb-3 flex-shrink-0">
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5">
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="기업명 검색"
-                  value={modalCompanySearch}
-                  onChange={e => setModalCompanySearch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
-                  autoFocus
-                />
-              </div>
-            </div>
-            {/* 기업 그리드 */}
-            <div className="flex-1 overflow-y-auto px-6 pb-4">
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                {companies
-                  .filter(c => !modalCompanySearch.trim() || c.name.includes(modalCompanySearch.trim()))
-                  .map(c => {
-                    const selected = configDraft.companyIds[0] === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => configDraft.setDraft({ companyIds: selected ? [] : [c.id] })}
-                        className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all ${
-                          selected
-                            ? 'border-[#55A4DA] bg-[#55A4DA]/5 shadow-sm'
-                            : 'border-gray-200 hover:border-[#55A4DA]/40 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div className={`w-10 h-10 rounded-xl ${c.color} flex items-center justify-center flex-shrink-0`}>
-                          <span className="text-white text-xs font-bold">{c.initials}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-semibold truncate ${selected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{c.name}</p>
-                          <p className="text-[11px] text-gray-400 truncate">{c.industry}</p>
-                        </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                          selected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-                        }`}>
-                          {selected && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-            {/* 푸터 */}
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end flex-shrink-0">
-              <button
-                onClick={() => {
-                  if (configDraft.companyIds.length > 0) setShowCompanyModal(false);
-                }}
-                disabled={configDraft.companyIds.length === 0}
-                className={`px-6 py-2.5 text-sm font-bold rounded-xl transition-colors ${
-                  configDraft.companyIds.length > 0
-                    ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                시작하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── 임시저장 토스트 ── */}
       {showCancelConfirm && (
