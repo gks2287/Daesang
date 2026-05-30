@@ -10,7 +10,7 @@ import { LEADERSHIP_COLOR } from '@/lib/constants/leadershipColors';
 import { type Round } from '@/lib/content';
 import { getContentList, type ContentPoolItem, type ContentCategory } from '@/lib/api/contentPool';
 import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestion } from '@/store/newNewsletterDraftStore';
-import { useParticipantStore, NEGATIVE_TYPES } from '@/store/participantStore';
+import { useParticipantStore, POSITIVE_TYPES, NEGATIVE_TYPES } from '@/store/participantStore';
 
 type DeliveryInterval = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual';
 type WizardStep = 1 | 2 | 3 | 4;
@@ -150,10 +150,10 @@ function ConfigureContent() {
 
   const targetCompanies = companies.filter(c => configDraft.companyIds.includes(c.id));
   const leadershipTypes: string[] = [];
-  const isAllPositive = false;
-  const isMixed = false;
 
   const selectedParticipants = allParticipants.filter(p => configDraft.companyIds?.includes(p.companyId) ?? false);
+  const positiveParticipants = selectedParticipants.filter(p => POSITIVE_TYPES.includes(p.leadershipType));
+  const negativeParticipants = selectedParticipants.filter(p => NEGATIVE_TYPES.includes(p.leadershipType));
 
   const [showCompanyModal, setShowCompanyModal] = useState(configDraft.companyIds.length === 0);
   const [modalCompanySearch, setModalCompanySearch] = useState('');
@@ -517,13 +517,7 @@ function ConfigureContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic,
-          leadershipType: (() => {
-            const r = rounds[roundIdx];
-            if (r?.newsletterType === '맞춤형' && contentTab === 'custom' && r.customTypes.length > 0) {
-              return r.customTypes.join(', ');
-            }
-            return '일반형';
-          })(),
+          leadershipType: '일반형',
           storyStage: customStoryline[rounds[roundIdx]?.stepIndex ?? 0]?.title ?? '',
           existingIds: rounds[roundIdx]?.contents.map(c => c.id) ?? [],
         }),
@@ -546,11 +540,50 @@ function ConfigureContent() {
     }
   }
 
+  async function suggestCustomContentsForRound(roundIdx: number, topic: string) {
+    if (!topic.trim()) return;
+    setContentSuggestLoading(prev => { const n = [...prev]; n[roundIdx] = true; return n; });
+    try {
+      const r = rounds[roundIdx];
+      const res = await fetch('/api/contents/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic,
+          leadershipType: r?.customTypes.length ? r.customTypes.join(', ') : '맞춤형',
+          storyStage: customStoryline[r?.stepIndex ?? 0]?.title ?? '',
+          existingIds: r?.customContents.map(c => c.id) ?? [],
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { contents: ContentPoolItem[] };
+      if (!data.contents?.length) return;
+      setRounds(prev =>
+        prev.map((round, i) =>
+          i !== roundIdx ? round : {
+            ...round,
+            customContents: [...round.customContents, ...data.contents.filter(s => !round.customContents.some(c => c.id === s.id))],
+          }
+        )
+      );
+    } catch {
+      // silently fail
+    } finally {
+      setContentSuggestLoading(prev => { const n = [...prev]; n[roundIdx] = false; return n; });
+    }
+  }
+
   // ── 네비게이션 ──
   function canGoNext(): boolean {
     if (wizardStep === 1) return configDraft.companyIds.length > 0;
     if (wizardStep === 2) return distSum === totalRounds && totalRounds >= customStoryline.length;
     if (wizardStep === 3) return true;
+    // TODO: 나중에 아래 조건으로 복원
+    // if (wizardStep === 3) return rounds.every(r =>
+    //   r.newsletterType === '맞춤형'
+    //     ? r.customTopic.trim().length > 0 && r.topic.trim().length > 0
+    //     : r.topic.trim().length > 0
+    // );
     return true;
   }
 
@@ -1005,7 +1038,9 @@ function ConfigureContent() {
                 const s = customStoryline[r.stepIndex];
                 const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
                 const isActive = idx === activeRoundIdx;
-                const isDone = r.topic.trim().length > 0;
+                const isDone = r.newsletterType === '맞춤형'
+                  ? r.customTopic.trim().length > 0 && r.topic.trim().length > 0
+                  : r.topic.trim().length > 0;
                 return (
                   <button
                     key={idx}
@@ -1038,7 +1073,11 @@ function ConfigureContent() {
                       </div>
                     </div>
                     <p className={`text-[11px] truncate pl-6 ${isDone ? 'text-gray-500' : 'text-gray-300'}`}>
-                      {isDone ? r.topic : '주제 미선정'}
+                      {isDone
+                        ? r.newsletterType === '맞춤형'
+                          ? `${r.customTopic} / ${r.topic}`
+                          : r.topic
+                        : '주제 미선정'}
                     </p>
                   </button>
                 );
@@ -1153,7 +1192,7 @@ function ConfigureContent() {
                             <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                               <p className="text-xs font-semibold text-gray-600 mb-2">맞춤형 대상 유형 선택 <span className="text-gray-400 font-normal">(1개)</span></p>
                               {NEGATIVE_TYPES.map(type => {
-                                const count = selectedParticipants.filter(p => p.leadershipType === type).length;
+                                const count = negativeParticipants.filter(p => p.leadershipType === type).length;
                                 const isChecked = rounds[activeRoundIdx]?.customTypes.includes(type) ?? false;
                                 return (
                                   <button
@@ -1194,17 +1233,23 @@ function ConfigureContent() {
                                 const r = rounds[activeRoundIdx];
                                 const customCount = r.customLeaderIds.length;
                                 const generalCount = r.generalLeaderIds.length;
+                                const positiveCount = positiveParticipants.length;
                                 const customSummary = r.customTypes.map(t => {
-                                  const n = selectedParticipants.filter(p => p.leadershipType === t).length;
+                                  const n = negativeParticipants.filter(p => p.leadershipType === t).length;
                                   return `${t} ${n}명`;
                                 }).join(' + ');
                                 return (
-                                  <div className="mt-2 px-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                                  <div className="mt-2 px-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
                                     <p className="text-xs text-gray-700 leading-relaxed">
                                       <span className="font-semibold text-[#2E7DB5]">{customSummary}</span>
-                                      <span className="text-gray-400"> (맞춤형, 총 {customCount}명) + 나머지 </span>
-                                      <span className="font-semibold text-gray-700">{generalCount}명</span>
-                                      <span className="text-gray-400"> (일반형)</span>
+                                      <span className="text-gray-400"> → 맞춤형 ({customCount}명)</span>
+                                    </p>
+                                    <p className="text-xs text-gray-700 leading-relaxed">
+                                      <span className="font-semibold text-gray-700">나머지 {generalCount}명</span>
+                                      {positiveCount > 0 && (
+                                        <span className="text-gray-400"> · 긍정 리더 {positiveCount}명 포함</span>
+                                      )}
+                                      <span className="text-gray-400"> → 일반형</span>
                                     </p>
                                   </div>
                                 );
@@ -1316,6 +1361,9 @@ function ConfigureContent() {
                                     onClick={() => {
                                       if (isCustomTab) {
                                         setRoundCustomTopic(activeRoundIdx, topic.title);
+                                        if (!rounds[activeRoundIdx]?.customContents.length) {
+                                          void suggestCustomContentsForRound(activeRoundIdx, topic.title);
+                                        }
                                       } else {
                                         setRoundTopic(activeRoundIdx, topic.title);
                                         if (!rounds[activeRoundIdx]?.contents.length) {
@@ -1351,8 +1399,12 @@ function ConfigureContent() {
                                 : setRoundTopic(activeRoundIdx, e.target.value)
                               }
                               onKeyDown={e => {
-                                if (e.key === 'Enter' && activeTopic.trim() && !isCustomTab) {
-                                  void suggestContentsForRound(activeRoundIdx, activeTopic.trim());
+                                if (e.key === 'Enter' && activeTopic.trim()) {
+                                  if (isCustomTab) {
+                                    void suggestCustomContentsForRound(activeRoundIdx, activeTopic.trim());
+                                  } else {
+                                    void suggestContentsForRound(activeRoundIdx, activeTopic.trim());
+                                  }
                                 }
                               }}
                               placeholder="뉴스레터 주제를 입력하세요 (Enter로 AI 콘텐츠 추천)"
@@ -1442,7 +1494,7 @@ function ConfigureContent() {
                                   )}
                                 </div>
                               ))}
-                              {!isCustomTab && contentSuggestLoading[activeRoundIdx] && (
+                              {contentSuggestLoading[activeRoundIdx] && (
                                 <div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5">
                                   <svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

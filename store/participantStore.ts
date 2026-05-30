@@ -40,6 +40,10 @@ const MOCK: Participant[] = [
   { id: 101, companyId: 1, year: 2025, name: '김태준', department: '생산기술팀', position: '부장', email: 'kim.tj@lgchem.com', leadershipType: '독재형', assessmentRound: 2, deliveryStatus: '완료', lastOpenedAt: '2025-11-10', stepCurrent: 5, stepTotal: 5 },
   { id: 102, companyId: 1, year: 2025, name: '이수민', department: '품질관리팀', position: '차장', email: 'lee.sm@lgchem.com', leadershipType: '성과압박형', assessmentRound: 1, deliveryStatus: '완료', lastOpenedAt: '2025-11-08', stepCurrent: 5, stepTotal: 5 },
   { id: 103, companyId: 1, year: 2025, name: '박현우', department: '연구개발팀', position: '부장', email: 'park.hw@lgchem.com', leadershipType: '불통형', assessmentRound: 2, deliveryStatus: '완료', lastOpenedAt: '2025-11-09', stepCurrent: 5, stepTotal: 5 },
+  // LG화학 (id: 1) — 2025 긍정 리더
+  { id: 107, companyId: 1, year: 2025, name: '송하은', department: '경영기획팀', position: '부장', email: 'song.he@lgchem.com', leadershipType: '코칭형', assessmentRound: 1, deliveryStatus: '완료', lastOpenedAt: '2025-11-12', stepCurrent: 5, stepTotal: 5 },
+  { id: 108, companyId: 1, year: 2025, name: '임준서', department: '전략팀', position: '차장', email: 'lim.js@lgchem.com', leadershipType: '민주형', assessmentRound: 1, deliveryStatus: '완료', lastOpenedAt: '2025-11-11', stepCurrent: 5, stepTotal: 5 },
+  { id: 109, companyId: 1, year: 2026, name: '권나연', department: '혁신추진팀', position: '부장', email: 'kwon.ny@lgchem.com', leadershipType: '비전형', assessmentRound: 2, deliveryStatus: '발송완료', lastOpenedAt: null, stepCurrent: 2, stepTotal: 5 },
   // LG화학 (id: 1) — 2026
   { id: 104, companyId: 1, year: 2026, name: '정미래', department: '영업팀', position: '과장', email: 'jung.mr@lgchem.com', leadershipType: '방관형', assessmentRound: 1, deliveryStatus: '미발송', lastOpenedAt: null, stepCurrent: 0, stepTotal: 5 },
   { id: 105, companyId: 1, year: 2026, name: '최동혁', department: '인사팀', position: '차장', email: 'choi.dh@lgchem.com', leadershipType: '감정기복형', assessmentRound: 2, deliveryStatus: '발송완료', lastOpenedAt: null, stepCurrent: 2, stepTotal: 5 },
