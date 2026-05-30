@@ -192,23 +192,27 @@ function ConfigureContent() {
 
   // 주제 선정
   const [suggestions, setSuggestions] = useState<TopicSuggestion[]>(configDraft.suggestions);
+  const [suggestionsTarget, setSuggestionsTarget] = useState<'custom' | 'general'>('general');
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [topicError, setTopicError] = useState<string | null>(null);
 
-  // 아코디언 열림 상태 (1=주제선정, 2=콘텐츠, 3=인터랙션, 4=만족도)
-  const [openSections, setOpenSections] = useState<Set<number>>(new Set([2]));
+  // 아코디언 열림 상태 (2=주제선정, 3=콘텐츠, 4=인터랙션, 5=만족도)
+  const [customOpenSections, setCustomOpenSections] = useState<Set<number>>(new Set([2]));
+  const [generalOpenSections, setGeneralOpenSections] = useState<Set<number>>(new Set([2]));
+  const [customPanelOpen, setCustomPanelOpen] = useState(true);
+  const [generalPanelOpen, setGeneralPanelOpen] = useState(true);
 
   // 뉴스레터 유형 선택 (0번 섹션, 뉴스레터 전체 적용)
   const [typeOpen, setTypeOpen] = useState(true);
 
   // 콘텐츠 풀
   const [contentPoolOpen, setContentPoolOpen] = useState(false);
+  const [contentPoolForCustom, setContentPoolForCustom] = useState(false);
   const [contentPoolItems, setContentPoolItems] = useState<ContentPoolItem[]>([]);
   const [contentPoolLoading, setContentPoolLoading] = useState(false);
   const [contentPoolQuery, setContentPoolQuery] = useState('');
   const [contentPoolCategoryFilter, setContentPoolCategoryFilter] = useState<ContentCategory | ''>('');
   const [contentPreviewItem, setContentPreviewItem] = useState<ContentPoolItem | null>(null);
-  const [contentTab, setContentTab] = useState<'general' | 'custom'>('general');
   const [contentSuggestLoading, setContentSuggestLoading] = useState<boolean[]>([]);
 
   // ── 4단계: 발송 주기 ──
@@ -236,13 +240,25 @@ function ConfigureContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution]);
 
-  // 회차 전환 시 ①만 열린 상태로 리셋
+  // 회차 전환 시 아코디언 초기화
   useEffect(() => {
-    setOpenSections(new Set([2]));
+    setCustomOpenSections(new Set([2]));
+    setGeneralOpenSections(new Set([2]));
+    setCustomPanelOpen(true);
+    setGeneralPanelOpen(true);
+    setSuggestionsTarget('general');
   }, [activeRoundIdx]);
 
-  function toggleSection(n: number) {
-    setOpenSections(prev => {
+  function toggleCustomSection(n: number) {
+    setCustomOpenSections(prev => {
+      const next = new Set(prev);
+      next.has(n) ? next.delete(n) : next.add(n);
+      return next;
+    });
+  }
+
+  function toggleGeneralSection(n: number) {
+    setGeneralOpenSections(prev => {
       const next = new Set(prev);
       next.has(n) ? next.delete(n) : next.add(n);
       return next;
@@ -361,10 +377,11 @@ function ConfigureContent() {
   }
 
   // ── 3단계: 주제 선정 함수 ──
-  async function fetchTopicsForRound(roundIdx: number) {
+  async function fetchTopicsForRound(roundIdx: number, isCustom = false) {
     setIsLoadingTopics(true);
     setTopicError(null);
     setSuggestions([]);
+    setSuggestionsTarget(isCustom ? 'custom' : 'general');
     try {
       const currentRound = rounds[roundIdx];
       const res = await fetch('/api/topics/suggest', {
@@ -373,13 +390,13 @@ function ConfigureContent() {
         body: JSON.stringify({
           leadershipTypes: (() => {
             const r = rounds[roundIdx];
-            if (r?.newsletterType === '맞춤형' && contentTab === 'custom' && r.customTypes.length > 0) {
+            if (isCustom && r?.newsletterType === '맞춤형' && r.customTypes.length > 0) {
               return r.customTypes;
             }
             return ['일반형'];
           })(),
           companyName: targetCompanies[0]?.name ?? '',
-          kind: (rounds[roundIdx]?.newsletterType === '맞춤형' && contentTab === 'custom') ? '맞춤형' : '일반형',
+          kind: (isCustom && rounds[roundIdx]?.newsletterType === '맞춤형') ? '맞춤형' : '일반형',
           stepTitle: currentRound ? customStoryline[currentRound.stepIndex]?.title : '',
           roundIndex: roundIdx + 1,
         }),
@@ -436,7 +453,8 @@ function ConfigureContent() {
     }
   }, []);
 
-  function openContentPool() {
+  function openContentPool(isCustom = false) {
+    setContentPoolForCustom(isCustom);
     setContentPoolQuery('');
     setContentPoolCategoryFilter('');
     void loadContentPool('', '');
@@ -704,7 +722,6 @@ function ConfigureContent() {
     setActiveRoundIdx(idx);
     setSuggestions([]);
     setTopicError(null);
-    setContentTab(rounds[idx]?.newsletterType === '맞춤형' ? 'custom' : 'general');
   }
 
   return (
@@ -1087,11 +1104,6 @@ function ConfigureContent() {
               if (!r) return null;
               const s = customStoryline[r.stepIndex];
               const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
-              const isCustomTab = contentTab === 'custom' && r.newsletterType === '맞춤형' && r.customTypes.length > 0;
-              const activeTopic = isCustomTab ? r.customTopic : r.topic;
-              const activeContents = isCustomTab ? r.customContents : r.contents;
-              const activeInteractions = isCustomTab ? r.customInteractions : r.interactions;
-              const activeSurveys = isCustomTab ? r.customSurveys : r.surveys;
               return (
                 <div className="space-y-2">
 
@@ -1198,7 +1210,6 @@ function ConfigureContent() {
                                         const generalLeaderIds = selectedParticipants.filter(p => !next.includes(p.leadershipType)).map(p => p.id);
                                         return { ...r, customTypes: next, customLeaderIds, generalLeaderIds };
                                       }));
-                                      if (!isChecked) setContentTab('custom');
                                     }}
                                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl border-2 text-left transition-all ${
                                       isChecked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -1252,373 +1263,270 @@ function ConfigureContent() {
                     </div>
                   </div>
 
-                  {/* 맞춤형/일반형 탭 */}
+                  {/* 맞춤형 섹션 */}
                   {r.newsletterType === '맞춤형' && r.customTypes.length > 0 && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setContentTab('custom')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
-                          contentTab === 'custom'
-                            ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                        }`}
-                      >
-                        맞춤형 · {r.customTypes.join('+')} ({r.customLeaderIds.length}명)
+                    <div className="bg-[#55A4DA]/5 rounded-2xl border border-[#55A4DA]/30 overflow-hidden">
+                      <button onClick={() => setCustomPanelOpen(prev => !prev)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-[#55A4DA]/10 transition-colors">
+                        <span className="text-sm">🎯</span>
+                        <p className="text-sm font-bold text-[#2E7DB5] flex-1 text-left">맞춤형 · {r.customTypes.join('+')} <span className="font-normal text-[#55A4DA]/70">({r.customLeaderIds.length}명)</span></p>
+                        <svg className={`w-3.5 h-3.5 text-[#55A4DA] flex-shrink-0 transition-transform duration-200 ${customPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </button>
-                      <button
-                        onClick={() => setContentTab('general')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
-                          contentTab === 'general'
-                            ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]'
-                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                        }`}
-                      >
-                        일반형 (나머지 {r.generalLeaderIds.length}명)
-                      </button>
+                      <div className={`grid transition-all duration-200 ${customPanelOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                        <div className="overflow-hidden">
+                          <div className="px-3 pb-3 space-y-2">
+                            {/* 주제 선정 - 맞춤형 */}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                              <button onClick={() => toggleCustomSection(2)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                                <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
+                                <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
+                                {r.customTopic.trim() ? (<svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">필수</span>)}
+                                <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${customOpenSections.has(2) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                              <div className={`grid transition-all duration-200 ${customOpenSections.has(2) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                <div className="overflow-hidden">
+                                  <div className="border-t border-gray-100 p-5 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs text-gray-500">이 회차 · 단계에 맞는 주제를 AI가 추천합니다.</p>
+                                      <button onClick={() => fetchTopicsForRound(activeRoundIdx, true)} disabled={isLoadingTopics} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${isLoadingTopics ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'}`}>
+                                        {isLoadingTopics ? (<><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>생성 중...</>) : (<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>{suggestions.length > 0 && suggestionsTarget === 'custom' ? '다시 추천' : 'AI 추천받기'}</>)}
+                                      </button>
+                                    </div>
+                                    {topicError && suggestionsTarget === 'custom' && (
+                                      <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                                        <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <p className="text-xs text-red-600 flex-1">{topicError}</p>
+                                        <button onClick={() => fetchTopicsForRound(activeRoundIdx, true)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">재시도</button>
+                                      </div>
+                                    )}
+                                    {suggestions.length > 0 && suggestionsTarget === 'custom' && (
+                                      <div className="space-y-2">
+                                        {suggestions.map((topic, idx) => {
+                                          const isSelected = r.customTopic === topic.title;
+                                          return (
+                                            <button key={idx} onClick={() => { setRoundCustomTopic(activeRoundIdx, topic.title); if (!rounds[activeRoundIdx]?.customContents.length) void suggestCustomContentsForRound(activeRoundIdx, topic.title); }} className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div>
+                                              <div className="flex-1 min-w-0"><p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{topic.title}</p><p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{topic.description}</p></div>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    <div>
+                                      <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
+                                      <input type="text" value={r.customTopic} onChange={e => setRoundCustomTopic(activeRoundIdx, e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && r.customTopic.trim()) void suggestCustomContentsForRound(activeRoundIdx, r.customTopic.trim()); }} placeholder="맞춤형 뉴스레터 주제를 입력하세요 (Enter로 AI 콘텐츠 추천)" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition" />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {/* 콘텐츠 선택 - 맞춤형 */}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                              <div onClick={() => toggleCustomSection(3)} className="px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer">
+                                <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
+                                <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
+                                {r.customContents.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.customContents.length}개 선택됨</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                                <button onClick={e => { e.stopPropagation(); openContentPool(true); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀</button>
+                                <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${customOpenSections.has(3) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </div>
+                              <div className={`grid transition-all duration-200 ${customOpenSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                <div className="overflow-hidden">
+                                  <div className="border-t border-gray-100 p-4">
+                                    {r.customContents.length === 0 && !contentSuggestLoading[activeRoundIdx] ? (
+                                      <button onClick={() => openContentPool(true)} className="w-full py-5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors flex flex-col items-center gap-1.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀에서 선택하세요</button>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {r.customContents.map(item => (
+                                          <div key={item.id} className="border border-gray-100 rounded-xl px-3 pt-2.5 pb-2 group bg-gray-50">
+                                            <div className="flex items-center gap-3">
+                                              {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-gray-200" />}
+                                              <div className="flex-1 min-w-0"><div className="flex items-center gap-1 mb-0.5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.type === 'original' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{item.type === 'original' ? 'J& 오리지널' : '큐레이션'}</span><span className="text-[10px] text-gray-400">{item.category} · {item.duration}분</span></div><p className="text-xs font-semibold text-gray-700 truncate">{item.title}</p></div>
+                                              <button onClick={() => removeCustomContentFromRound(activeRoundIdx, item.id)} className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                            </div>
+                                            {item.body && <button onClick={() => setContentPreviewItem(item)} className="mt-1.5 text-[11px] text-[#55A4DA] hover:text-[#2E7DB5] font-medium transition-colors">내용 보기 →</button>}
+                                          </div>
+                                        ))}
+                                        {contentSuggestLoading[activeRoundIdx] && (<div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5"><svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg><p className="text-xs text-[#55A4DA] font-medium">AI가 콘텐츠를 선택하는 중...</p></div>)}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {/* 인터랙션 요소 - 맞춤형 */}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                              <button onClick={() => toggleCustomSection(4)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                                <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
+                                <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
+                                {r.customInteractions.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.customInteractions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                                <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${customOpenSections.has(4) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                              <div className={`grid transition-all duration-200 ${customOpenSections.has(4) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                <div className="overflow-hidden">
+                                  <div className="border-t border-gray-100 p-5 space-y-2">
+                                    <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요. 복수 선택 가능합니다.</p>
+                                    {([{ val: 'quiz' as const, label: '퀴즈', desc: '학습 내용 확인 퀴즈' }, { val: 'scenario' as const, label: '선택형 시나리오', desc: '상황을 주고 A/B/C 중 선택하면 유형별 피드백을 주는 인터랙션' }, { val: 'selfcheck' as const, label: '셀프 진단/체크리스트', desc: '정답 없이 스스로를 점검하는 체크리스트 (예: 나는 팀원 의견을 충분히 듣는가?)' }, { val: 'reflection' as const, label: '회고 질문', desc: '성찰을 유도하는 열린 질문 (예: 이번 주 바꾸고 싶은 내 행동은?)' }, { val: 'dodont' as const, label: "Do & Don't 리스트", desc: '해야 할 것과 하지 말아야 할 것을 명확하게 정리한 실천 가이드' }]).map(({ val, label, desc }) => {
+                                      const checked = r.customInteractions.includes(val);
+                                      return (<button key={val} onClick={() => toggleCustomInteraction(activeRoundIdx, val)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}><div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{checked && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><div><p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p><p className="text-[11px] text-gray-400">{desc}</p></div></button>);
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {/* 만족도 조사 - 맞춤형 */}
+                            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                              <button onClick={() => toggleCustomSection(5)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                                <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
+                                <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
+                                {r.customSurveys.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.customSurveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                                <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${customOpenSections.has(5) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                              <div className={`grid transition-all duration-200 ${customOpenSections.has(5) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                                <div className="overflow-hidden">
+                                  <div className="border-t border-gray-100 p-5 space-y-2">
+                                    <p className="text-xs text-gray-400 mb-3">이 회차에 포함할 만족도 조사를 선택하세요. 중복 선택 가능합니다.</p>
+                                    {([{ val: 'always' as const, label: '상시 만족도 조사', desc: '매 회차 발송 후 수집' }, { val: 'periodic' as const, label: '정기 만족도 조사', desc: '주기적으로 심층 수집' }]).map(({ val, label, desc }) => {
+                                      const checked = r.customSurveys.includes(val);
+                                      return (<button key={val} onClick={() => toggleCustomSurvey(activeRoundIdx, val)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}><div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{checked && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><div><p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p><p className="text-[11px] text-gray-400">{desc}</p></div></button>);
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  {/* ① 주제 선정 */}
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <button
-                      onClick={() => toggleSection(2)}
-                      className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
-                      <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
-                      {activeTopic.trim() ? (
-                        <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 flex-shrink-0">필수</span>
-                      )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(2) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                  {/* 일반형 섹션 */}
+                  <div className={`rounded-2xl overflow-hidden ${r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? 'bg-gray-50 border border-gray-200' : 'bg-white border border-gray-200 shadow-sm'}`}>
+                    <button onClick={() => setGeneralPanelOpen(prev => !prev)} className={`w-full px-5 py-3 flex items-center gap-2 transition-colors ${r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
+                      <span className="text-sm">📋</span>
+                      <p className="text-sm font-bold text-gray-800 flex-1 text-left">일반형 <span className="font-normal text-gray-400">({r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? `나머지 ${r.generalLeaderIds.length}명` : `${selectedParticipants.length}명`})</span></p>
+                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-200 ${generalPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                     </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(2) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                    <div className={`grid transition-all duration-200 ${generalPanelOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
                       <div className="overflow-hidden">
-                        <div className="border-t border-gray-100 p-5 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs text-gray-500">
-                              이 회차 · 단계에 맞는 주제를 AI가 추천합니다.
-                            </p>
-                            <button
-                                onClick={() => fetchTopicsForRound(activeRoundIdx)}
-                                disabled={isLoadingTopics}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${
-                                  isLoadingTopics
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
-                                }`}
-                              >
-                                {isLoadingTopics ? (
-                                  <>
-                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                    </svg>
-                                    생성 중...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                    </svg>
-                                    {suggestions.length > 0 ? '다시 추천' : 'AI 추천받기'}
-                                  </>
-                                )}
-                              </button>
-                          </div>
-                          {topicError && (
-                            <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
-                              <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <p className="text-xs text-red-600 flex-1">{topicError}</p>
-                              <button onClick={() => fetchTopicsForRound(activeRoundIdx)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">
-                                재시도
-                              </button>
-                            </div>
-                          )}
-                          {suggestions.length > 0 && (
-                            <div className="space-y-2">
-                              {suggestions.map((topic, idx) => {
-                                const isSelected = activeTopic === topic.title;
-                                return (
-                                  <button
-                                    key={idx}
-                                    onClick={() => {
-                                      if (isCustomTab) {
-                                        setRoundCustomTopic(activeRoundIdx, topic.title);
-                                        if (!rounds[activeRoundIdx]?.customContents.length) {
-                                          void suggestCustomContentsForRound(activeRoundIdx, topic.title);
-                                        }
-                                      } else {
-                                        setRoundTopic(activeRoundIdx, topic.title);
-                                        if (!rounds[activeRoundIdx]?.contents.length) {
-                                          void suggestContentsForRound(activeRoundIdx, topic.title);
-                                        }
-                                      }
-                                    }}
-                                    className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
-                                      isSelected ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
-                                      isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-                                    }`}>
-                                      {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{topic.title}</p>
-                                      <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{topic.description}</p>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
-                            <input
-                              type="text"
-                              value={activeTopic}
-                              onChange={e => isCustomTab
-                                ? setRoundCustomTopic(activeRoundIdx, e.target.value)
-                                : setRoundTopic(activeRoundIdx, e.target.value)
-                              }
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && activeTopic.trim()) {
-                                  if (isCustomTab) {
-                                    void suggestCustomContentsForRound(activeRoundIdx, activeTopic.trim());
-                                  } else {
-                                    void suggestContentsForRound(activeRoundIdx, activeTopic.trim());
-                                  }
-                                }
-                              }}
-                              placeholder="뉴스레터 주제를 입력하세요 (Enter로 AI 콘텐츠 추천)"
-                              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                        <div className="px-3 pb-3 space-y-2">
 
-                  {/* ② 콘텐츠 선택 */}
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div
-                      onClick={() => toggleSection(3)}
-                      className="px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer"
-                    >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
-                      <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
-                      {activeContents.length > 0 ? (
-                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{activeContents.length}개 선택됨</span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
-                      )}
-                      <button
-                        onClick={e => { e.stopPropagation(); openContentPool(); }}
-                        className="flex items-center gap-1 px-2.5 py-1 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                        </svg>
-                        콘텐츠 풀
-                      </button>
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(3) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    <div className={`grid transition-all duration-200 ${openSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                      <div className="overflow-hidden">
-                        <div className="border-t border-gray-100 p-4">
-                          {activeContents.length === 0 && !contentSuggestLoading[activeRoundIdx] ? (
-                            <button
-                              onClick={openContentPool}
-                              className="w-full py-5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors flex flex-col items-center gap-1.5"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                              </svg>
-                              콘텐츠 풀에서 선택하세요
+                          {/* 주제 선정 - 일반형 */}
+                          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                            <button onClick={() => toggleGeneralSection(2)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                              <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
+                              <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
+                              {r.topic.trim() ? (<svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">필수</span>)}
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${generalOpenSections.has(2) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
-                          ) : (
-                            <div className="space-y-2">
-                              {activeContents.map(item => (
-                                <div key={item.id} className="border border-gray-100 rounded-xl px-3 pt-2.5 pb-2 group bg-gray-50">
-                                  <div className="flex items-center gap-3">
-                                    {item.thumbnail && (
-                                      <img src={item.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-gray-200" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1 mb-0.5">
-                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                          item.type === 'original' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'
-                                        }`}>{item.type === 'original' ? 'J& 오리지널' : '큐레이션'}</span>
-                                        <span className="text-[10px] text-gray-400">{item.category} · {item.duration}분</span>
-                                      </div>
-                                      <p className="text-xs font-semibold text-gray-700 truncate">{item.title}</p>
-                                    </div>
-                                    <button
-                                      onClick={() => isCustomTab
-                                        ? removeCustomContentFromRound(activeRoundIdx, item.id)
-                                        : removeContentFromRound(activeRoundIdx, item.id)
-                                      }
-                                      className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                      </svg>
+                            <div className={`grid transition-all duration-200 ${generalOpenSections.has(2) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                              <div className="overflow-hidden">
+                                <div className="border-t border-gray-100 p-5 space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs text-gray-500">이 회차 · 단계에 맞는 주제를 AI가 추천합니다.</p>
+                                    <button onClick={() => fetchTopicsForRound(activeRoundIdx, false)} disabled={isLoadingTopics} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${isLoadingTopics ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'}`}>
+                                      {isLoadingTopics ? (<><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>생성 중...</>) : (<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>{suggestions.length > 0 && suggestionsTarget === 'general' ? '다시 추천' : 'AI 추천받기'}</>)}
                                     </button>
                                   </div>
-                                  {item.body && (
-                                    <button
-                                      onClick={() => setContentPreviewItem(item)}
-                                      className="mt-1.5 text-[11px] text-[#55A4DA] hover:text-[#2E7DB5] font-medium transition-colors"
-                                    >
-                                      내용 보기 →
-                                    </button>
+                                  {topicError && suggestionsTarget === 'general' && (
+                                    <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                                      <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                      <p className="text-xs text-red-600 flex-1">{topicError}</p>
+                                      <button onClick={() => fetchTopicsForRound(activeRoundIdx, false)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">재시도</button>
+                                    </div>
                                   )}
+                                  {suggestions.length > 0 && suggestionsTarget === 'general' && (
+                                    <div className="space-y-2">
+                                      {suggestions.map((topic, idx) => {
+                                        const isSelected = r.topic === topic.title;
+                                        return (
+                                          <button key={idx} onClick={() => { setRoundTopic(activeRoundIdx, topic.title); if (!rounds[activeRoundIdx]?.contents.length) void suggestContentsForRound(activeRoundIdx, topic.title); }} className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div>
+                                            <div className="flex-1 min-w-0"><p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{topic.title}</p><p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{topic.description}</p></div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
+                                    <input type="text" value={r.topic} onChange={e => setRoundTopic(activeRoundIdx, e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && r.topic.trim()) void suggestContentsForRound(activeRoundIdx, r.topic.trim()); }} placeholder="일반형 뉴스레터 주제를 입력하세요 (Enter로 AI 콘텐츠 추천)" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition" />
+                                  </div>
                                 </div>
-                              ))}
-                              {contentSuggestLoading[activeRoundIdx] && (
-                                <div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5">
-                                  <svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                                  </svg>
-                                  <p className="text-xs text-[#55A4DA] font-medium">AI가 콘텐츠를 선택하는 중...</p>
-                                </div>
-                              )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ③ 인터랙션 요소 */}
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <button
-                      onClick={() => toggleSection(4)}
-                      className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
-                      <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
-                      {activeInteractions.length > 0 ? (
-                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
-                          {activeInteractions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
-                      )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(4) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(4) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                      <div className="overflow-hidden">
-                        <div className="border-t border-gray-100 p-5 space-y-2">
-                          <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요. 복수 선택 가능합니다.</p>
-                          {([
-                            { val: 'quiz' as const, label: '퀴즈', desc: '학습 내용 확인 퀴즈' },
-                            { val: 'scenario' as const, label: '선택형 시나리오', desc: '상황을 주고 A/B/C 중 선택하면 유형별 피드백을 주는 인터랙션' },
-                            { val: 'selfcheck' as const, label: '셀프 진단/체크리스트', desc: '정답 없이 스스로를 점검하는 체크리스트 (예: 나는 팀원 의견을 충분히 듣는가?)' },
-                            { val: 'reflection' as const, label: '회고 질문', desc: '성찰을 유도하는 열린 질문 (예: 이번 주 바꾸고 싶은 내 행동은?)' },
-                            { val: 'dodont' as const, label: 'Do & Don\'t 리스트', desc: '해야 할 것과 하지 말아야 할 것을 명확하게 정리한 실천 가이드' },
-                          ]).map(({ val, label, desc }) => {
-                            const checked = activeInteractions.includes(val);
-                            return (
-                              <button
-                                key={val}
-                                onClick={() => isCustomTab
-                                  ? toggleCustomInteraction(activeRoundIdx, val)
-                                  : toggleInteraction(activeRoundIdx, val)
-                                }
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
-                                  checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-                                }`}>
-                                  {checked && (
-                                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
+                          </div>
+                          {/* 콘텐츠 선택 - 일반형 */}
+                          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div onClick={() => toggleGeneralSection(3)} className="px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer">
+                              <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
+                              <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
+                              {r.contents.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.contents.length}개 선택됨</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                              <button onClick={e => { e.stopPropagation(); openContentPool(false); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀</button>
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${generalOpenSections.has(3) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                            <div className={`grid transition-all duration-200 ${generalOpenSections.has(3) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                              <div className="overflow-hidden">
+                                <div className="border-t border-gray-100 p-4">
+                                  {r.contents.length === 0 && !contentSuggestLoading[activeRoundIdx] ? (
+                                    <button onClick={() => openContentPool(false)} className="w-full py-5 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors flex flex-col items-center gap-1.5"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀에서 선택하세요</button>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {r.contents.map(item => (
+                                        <div key={item.id} className="border border-gray-100 rounded-xl px-3 pt-2.5 pb-2 group bg-gray-50">
+                                          <div className="flex items-center gap-3">
+                                            {item.thumbnail && <img src={item.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 bg-gray-200" />}
+                                            <div className="flex-1 min-w-0"><div className="flex items-center gap-1 mb-0.5"><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.type === 'original' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{item.type === 'original' ? 'J& 오리지널' : '큐레이션'}</span><span className="text-[10px] text-gray-400">{item.category} · {item.duration}분</span></div><p className="text-xs font-semibold text-gray-700 truncate">{item.title}</p></div>
+                                            <button onClick={() => removeContentFromRound(activeRoundIdx, item.id)} className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                          </div>
+                                          {item.body && <button onClick={() => setContentPreviewItem(item)} className="mt-1.5 text-[11px] text-[#55A4DA] hover:text-[#2E7DB5] font-medium transition-colors">내용 보기 →</button>}
+                                        </div>
+                                      ))}
+                                      {contentSuggestLoading[activeRoundIdx] && (<div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5"><svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg><p className="text-xs text-[#55A4DA] font-medium">AI가 콘텐츠를 선택하는 중...</p></div>)}
+                                    </div>
                                   )}
                                 </div>
-                                <div>
-                                  <p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p>
-                                  <p className="text-[11px] text-gray-400">{desc}</p>
+                              </div>
+                            </div>
+                          </div>
+                          {/* 인터랙션 요소 - 일반형 */}
+                          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                            <button onClick={() => toggleGeneralSection(4)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                              <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
+                              <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
+                              {r.interactions.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.interactions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${generalOpenSections.has(4) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <div className={`grid transition-all duration-200 ${generalOpenSections.has(4) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                              <div className="overflow-hidden">
+                                <div className="border-t border-gray-100 p-5 space-y-2">
+                                  <p className="text-xs text-gray-400 mb-3">학습 참여도를 높이는 인터랙션 요소를 선택하세요. 복수 선택 가능합니다.</p>
+                                  {([{ val: 'quiz' as const, label: '퀴즈', desc: '학습 내용 확인 퀴즈' }, { val: 'scenario' as const, label: '선택형 시나리오', desc: '상황을 주고 A/B/C 중 선택하면 유형별 피드백을 주는 인터랙션' }, { val: 'selfcheck' as const, label: '셀프 진단/체크리스트', desc: '정답 없이 스스로를 점검하는 체크리스트 (예: 나는 팀원 의견을 충분히 듣는가?)' }, { val: 'reflection' as const, label: '회고 질문', desc: '성찰을 유도하는 열린 질문 (예: 이번 주 바꾸고 싶은 내 행동은?)' }, { val: 'dodont' as const, label: "Do & Don't 리스트", desc: '해야 할 것과 하지 말아야 할 것을 명확하게 정리한 실천 가이드' }]).map(({ val, label, desc }) => {
+                                    const checked = r.interactions.includes(val);
+                                    return (<button key={val} onClick={() => toggleInteraction(activeRoundIdx, val)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}><div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{checked && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><div><p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p><p className="text-[11px] text-gray-400">{desc}</p></div></button>);
+                                  })}
                                 </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ④ 만족도 조사 */}
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                    <button
-                      onClick={() => toggleSection(5)}
-                      className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors"
-                    >
-                      <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
-                      <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
-                      {activeSurveys.length > 0 ? (
-                        <span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">
-                          {activeSurveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>
-                      )}
-                      <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${openSections.has(5) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    <div className={`grid transition-all duration-200 ${openSections.has(5) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                      <div className="overflow-hidden">
-                        <div className="border-t border-gray-100 p-5 space-y-2">
-                          <p className="text-xs text-gray-400 mb-3">이 회차에 포함할 만족도 조사를 선택하세요. 중복 선택 가능합니다.</p>
-                          {([
-                            { val: 'always' as const, label: '상시 만족도 조사', desc: '매 회차 발송 후 수집' },
-                            { val: 'periodic' as const, label: '정기 만족도 조사', desc: '주기적으로 심층 수집' },
-                          ]).map(({ val, label, desc }) => {
-                            const checked = activeSurveys.includes(val);
-                            return (
-                              <button
-                                key={val}
-                                onClick={() => isCustomTab
-                                  ? toggleCustomSurvey(activeRoundIdx, val)
-                                  : toggleSurvey(activeRoundIdx, val)
-                                }
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${
-                                  checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
-                                }`}>
-                                  {checked && (
-                                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
+                              </div>
+                            </div>
+                          </div>
+                          {/* 만족도 조사 - 일반형 */}
+                          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                            <button onClick={() => toggleGeneralSection(5)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                              <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
+                              <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
+                              {r.surveys.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{r.surveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${generalOpenSections.has(5) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <div className={`grid transition-all duration-200 ${generalOpenSections.has(5) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                              <div className="overflow-hidden">
+                                <div className="border-t border-gray-100 p-5 space-y-2">
+                                  <p className="text-xs text-gray-400 mb-3">이 회차에 포함할 만족도 조사를 선택하세요. 중복 선택 가능합니다.</p>
+                                  {([{ val: 'always' as const, label: '상시 만족도 조사', desc: '매 회차 발송 후 수집' }, { val: 'periodic' as const, label: '정기 만족도 조사', desc: '주기적으로 심층 수집' }]).map(({ val, label, desc }) => {
+                                    const checked = r.surveys.includes(val);
+                                    return (<button key={val} onClick={() => toggleSurvey(activeRoundIdx, val)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${checked ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}><div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{checked && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}</div><div><p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p><p className="text-[11px] text-gray-400">{desc}</p></div></button>);
+                                  })}
                                 </div>
-                                <div>
-                                  <p className={`text-sm font-semibold ${checked ? 'text-[#2E7DB5]' : 'text-gray-700'}`}>{label}</p>
-                                  <p className="text-[11px] text-gray-400">{desc}</p>
-                                </div>
-                              </button>
-                            );
-                          })}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1898,7 +1806,7 @@ function ConfigureContent() {
               ) : (
                 contentPoolItems.map(item => {
                   const currentRound = rounds[activeRoundIdx];
-                  const poolIsCustomTab = contentTab === 'custom' && currentRound?.newsletterType === '맞춤형' && (currentRound?.customTypes.length ?? 0) > 0;
+                  const poolIsCustomTab = contentPoolForCustom && currentRound?.newsletterType === '맞춤형' && (currentRound?.customTypes.length ?? 0) > 0;
                   const alreadyAdded = poolIsCustomTab
                     ? (currentRound?.customContents.some(c => c.id === item.id) ?? false)
                     : (currentRound?.contents.some(c => c.id === item.id) ?? false);
