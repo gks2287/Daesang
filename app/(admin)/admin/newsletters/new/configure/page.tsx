@@ -2630,20 +2630,27 @@ function ConfigureContent() {
         ) : <div />}
 
         {wizardStep < 4 && (
-          <button
-            onClick={goNext}
-            disabled={!canGoNext()}
-            className={`flex items-center gap-1.5 text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors ${
-              canGoNext()
-                ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            다음
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <div className="relative group">
+            {wizardStep === 1 && configDraft.companyIds.length === 0 && (
+              <div className="absolute bottom-full mb-2 right-0 whitespace-nowrap bg-gray-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                기업을 먼저 선택해주세요
+              </div>
+            )}
+            <button
+              onClick={goNext}
+              disabled={!canGoNext()}
+              className={`flex items-center gap-1.5 text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors ${
+                canGoNext()
+                  ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              다음
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         )}
         {wizardStep === 4 && (
           <button

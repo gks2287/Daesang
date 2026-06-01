@@ -8,21 +8,33 @@ import { useParticipantStore, type LeadershipType, type DeliveryStatus } from '@
 import { useDiagnosisHistoryStore } from '@/store/diagnosisHistoryStore';
 
 const leadershipColor: Record<LeadershipType, string> = {
+  '코칭형':    'bg-emerald-100 text-emerald-700',
+  '민주형':    'bg-teal-100 text-teal-700',
+  '서번트형':  'bg-cyan-100 text-cyan-700',
+  '비전형':    'bg-sky-100 text-sky-700',
+  '관계중심형': 'bg-blue-100 text-blue-700',
   '독재형':    'bg-red-100 text-red-600',
   '방관형':    'bg-orange-100 text-orange-600',
-  '성과압박형': 'bg-purple-100 text-purple-600',
   '불통형':    'bg-pink-100 text-pink-600',
-  '불명확형':  'bg-indigo-100 text-indigo-600',
+  '성과압박형': 'bg-purple-100 text-purple-600',
   '감정기복형': 'bg-amber-100 text-amber-600',
+  '완벽주의형': 'bg-violet-100 text-violet-600',
+  '우유부단형': 'bg-rose-100 text-rose-600',
 };
 
 const leadershipDesc: Record<LeadershipType, { summary: string; coaching: string }> = {
+  '코칭형':    { summary: '구성원의 잠재력을 이끌어내는 코칭 중심 리더십', coaching: '개인별 성장 목표를 함께 설정하고 정기적인 1:1 코칭 대화를 통해 강점을 극대화하세요.' },
+  '민주형':    { summary: '구성원 참여와 합의를 중시하는 민주적 리더십', coaching: '의사결정 참여 범위를 명확히 하고, 효율적 합의 구조를 설계해 빠른 실행력도 함께 갖추세요.' },
+  '서번트형':  { summary: '구성원을 먼저 섬기는 봉사 중심 리더십', coaching: '팀의 방향성과 목표를 명확히 제시하여 봉사 정신이 성과로 연결될 수 있도록 균형을 맞추세요.' },
+  '비전형':    { summary: '미래 방향을 제시하고 영감을 주는 비전 리더십', coaching: '장기 비전을 단기 실행 과제로 구체화하고, 구성원이 일상에서 비전을 체감할 수 있게 연결하세요.' },
+  '관계중심형': { summary: '신뢰와 유대감을 바탕으로 한 관계 중심 리더십', coaching: '관계 자산을 성과와 연결하고, 갈등 상황에서도 공정한 피드백을 제공하는 균형감을 키우세요.' },
   '독재형':    { summary: '일방적 지시와 통제 중심의 리더십', coaching: '구성원의 의견을 경청하고 자율성을 부여하는 참여형 의사결정 훈련이 필요합니다.' },
   '방관형':    { summary: '적극적 개입 없이 방치하는 리더십', coaching: '명확한 방향 제시와 피드백 루틴 수립, 구성원 성장에 대한 책임감 강화가 필요합니다.' },
-  '성과압박형': { summary: '결과 중심의 과도한 압박 리더십', coaching: '과정 중심의 지원과 심리적 안전감 조성, 번아웃 예방을 위한 균형 잡힌 목표 설정이 필요합니다.' },
   '불통형':    { summary: '소통 단절과 정보 독점 리더십', coaching: '열린 커뮤니케이션 채널 구축과 투명한 정보 공유, 적극적 경청 스킬 훈련이 필요합니다.' },
-  '불명확형':  { summary: '방향과 기준이 모호한 리더십', coaching: '명확한 목표 설정과 역할 정의, 일관된 기준 제시를 통한 예측 가능한 리더십이 필요합니다.' },
+  '성과압박형': { summary: '결과 중심의 과도한 압박 리더십', coaching: '과정 중심의 지원과 심리적 안전감 조성, 번아웃 예방을 위한 균형 잡힌 목표 설정이 필요합니다.' },
   '감정기복형': { summary: '감정 조절 미숙으로 인한 불안정 리더십', coaching: '감정 인식과 자기조절 역량 강화, 스트레스 상황에서의 안정적인 리더십 발휘 훈련이 필요합니다.' },
+  '완벽주의형': { summary: '과도한 완벽 기준으로 팀을 압박하는 리더십', coaching: '완벽이 아닌 적정 기준을 설정하고, 실패를 학습의 기회로 수용하는 심리적 유연성 훈련이 필요합니다.' },
+  '우유부단형': { summary: '결정을 회피하고 방향 제시가 부족한 리더십', coaching: '의사결정 프레임워크를 습득하고, 불완전한 정보 속에서도 적시에 판단을 내리는 훈련이 필요합니다.' },
 };
 
 const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: string }> = {
@@ -81,7 +93,7 @@ export default function ParticipantDetailPage() {
   }
 
   const badge = deliveryBadge[participant.deliveryStatus];
-  const leaderColor = leadershipColor[participant.leadershipType];
+  const leaderColor = leadershipColor[participant.leadershipType] ?? 'bg-gray-100 text-gray-600';
   const leaderInfo = leadershipDesc[participant.leadershipType];
   const progressPct = Math.round((participant.stepCurrent / participant.stepTotal) * 100);
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
@@ -158,11 +170,11 @@ export default function ParticipantDetailPage() {
                 <p className="text-xs font-semibold text-gray-500 mb-1">리더십 유형</p>
                 <p className={`text-xl font-bold ${leaderColor.split(' ')[1]}`}>{participant.leadershipType}</p>
               </div>
-              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo.summary}</p>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo?.summary ?? ''}</p>
             </div>
             <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3">
               <p className="text-xs font-semibold text-gray-500 mb-1">코칭 방향</p>
-              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo.coaching}</p>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo?.coaching ?? ''}</p>
             </div>
           </div>
 
