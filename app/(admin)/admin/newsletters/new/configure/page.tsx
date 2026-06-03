@@ -202,6 +202,8 @@ function ConfigureContent() {
   const livePreviewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // 이미 생성한 구성 시그니처 (동일 구성 재생성 방지 — 탭 전환 시 불필요한 호출 차단)
   const livePreviewDoneRef = useRef<Set<string>>(new Set());
+  // Step 3 → 4 진입 시 전 회차 자동 구성 로딩 오버레이
+  const [autoComposing, setAutoComposing] = useState(false);
 
   // 주제 선정
   const [suggestions, setSuggestions] = useState<TopicSuggestion[]>(configDraft.suggestions);
@@ -744,7 +746,7 @@ function ConfigureContent() {
     }
     if (wizardStep === 3) {
       // customGroups 기반으로 각 round의 leaderIds / newsletterType 자동 세팅
-      setRounds(prev => prev.map(r => {
+      const nextRounds = rounds.map(r => {
         // 그룹별 leaderIds 재계산 + 빈 그룹 제거
         const groups = r.customGroups
           .map(g => ({ ...g, leaderIds: negativeParticipants.filter(p => g.types.includes(p.leadershipType)).map(p => p.id) }))
@@ -761,11 +763,74 @@ function ConfigureContent() {
           generalTypes,
           newsletterType: groups.length > 0 ? '맞춤형' as const : '일반형' as const,
         };
-      }));
+      });
+      setRounds(nextRounds);
       setActiveRoundIdx(0);
       setSuggestions([]);
+      // 전 회차 × 전 대상 자동 구성 후 Step 4 진입 (로딩 오버레이 표시)
+      setAutoComposing(true);
+      void (async () => {
+        try {
+          const composed = await composeAllRounds(nextRounds);
+          setRounds(composed);
+        } finally {
+          setAutoComposing(false);
+          setWizardStep(4);
+        }
+      })();
+      return;
     }
     setWizardStep(prev => (prev + 1) as WizardStep);
+  }
+
+  // Step 3 → 4: 전 회차 × 전 대상 자동 구성 (주제 추천+첫 주제 선택, 콘텐츠 서칭 후 1~2개 선택)
+  async function composeAllRounds(base: Round[]): Promise<Round[]> {
+    const company = targetCompanies[0]?.name ?? '';
+    const fetchFirstTopic = async (types: string[], stepIdx: number, roundIdx: number, isCustom: boolean): Promise<string> => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch('/api/topics/suggest', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ leadershipTypes: types, companyName: company, kind: isCustom ? '맞춤형' : '일반형', stepTitle: customStoryline[stepIdx]?.title ?? '', roundIndex: roundIdx + 1 }),
+          });
+          if (res.ok) { const d = await res.json() as { topics: TopicSuggestion[] }; if (d.topics?.length) return d.topics[0].title; }
+        } catch { /* 재시도 */ }
+      }
+      return '';
+    };
+    const fetchContents = async (topic: string, leadershipType: string, stepIdx: number): Promise<ContentPoolItem[]> => {
+      try {
+        const res = await fetch('/api/contents/suggest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, leadershipType, storyStage: customStoryline[stepIdx]?.title ?? '', existingIds: [] }),
+        });
+        if (!res.ok) return [];
+        const d = await res.json() as { contents: ContentPoolItem[] };
+        return d.contents ?? [];
+      } catch { return []; }
+    };
+    const result = base.map(r => ({ ...r, customGroups: r.customGroups.map(g => ({ ...g })) }));
+    for (let ri = 0; ri < result.length; ri++) {
+      const r = result[ri];
+      for (const g of r.customGroups) {
+        if (g.types.length === 0) continue;
+        if (!g.topic.trim()) {
+          const t = await fetchFirstTopic(g.types, r.stepIndex, ri, true);
+          if (t) g.topic = t;
+        }
+        if (g.topic.trim() && g.contents.length === 0) {
+          g.contents = (await fetchContents(g.topic, g.types.join(', '), r.stepIndex)).slice(0, 2);
+        }
+      }
+      if (!r.topic.trim()) {
+        const t = await fetchFirstTopic(['일반형'], r.stepIndex, ri, false);
+        if (t) r.topic = t;
+      }
+      if (r.topic.trim() && r.contents.length === 0) {
+        r.contents = (await fetchContents(r.topic, '일반형', r.stepIndex)).slice(0, 2);
+      }
+    }
+    return result;
   }
 
   // 기본 그룹: 회사의 부정 리더 전체를 하나의 그룹으로
@@ -906,7 +971,6 @@ function ConfigureContent() {
         {/* 주제 선정 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <button onClick={() => toggleSectionKey(kTopic)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
-            <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">2</span>
             <p className="text-sm font-bold text-gray-800 flex-1 text-left">주제 선정</p>
             {topic.trim() ? (<svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">필수</span>)}
             <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${isSectionOpen(kTopic) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -927,7 +991,7 @@ function ConfigureContent() {
                     <button onClick={() => fetchTopicsForRound(activeRoundIdx, targetId)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">재시도</button>
                   </div>
                 )}
-                {suggestions.length > 0 && isTarget && (
+                {suggestions.length > 0 && isTarget ? (
                   <div className="space-y-2">
                     {suggestions.map((sg, idx) => {
                       const isSelected = topic === sg.title;
@@ -939,7 +1003,15 @@ function ConfigureContent() {
                       );
                     })}
                   </div>
-                )}
+                ) : topic.trim() ? (
+                  <div className="flex items-start gap-3 px-4 py-3 rounded-xl border-2 border-[#55A4DA] bg-[#55A4DA]/5">
+                    <div className="w-4 h-4 rounded-full border-2 border-[#55A4DA] bg-[#55A4DA] flex items-center justify-center flex-shrink-0 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-white" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-[#55A4DA] mb-0.5">AI 추천 주제</p>
+                      <p className="text-sm font-semibold text-[#2E7DB5] leading-snug">{topic}</p>
+                    </div>
+                  </div>
+                ) : null}
                 <div>
                   <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
                   <input type="text" value={topic} onChange={e => opts.setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && topic.trim()) opts.suggestContents(topic.trim()); }} placeholder={placeholder} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition" />
@@ -951,7 +1023,6 @@ function ConfigureContent() {
         {/* 콘텐츠 선택 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div onClick={() => toggleSectionKey(kContent)} className="px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors cursor-pointer">
-            <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
             <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
             {contents.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{contents.length}개 선택됨</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
             <button onClick={e => { e.stopPropagation(); if (topic.trim()) opts.suggestContents(topic.trim()); }} disabled={!topic.trim() || contentSuggestLoading[activeRoundIdx]} className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0 border ${!topic.trim() || contentSuggestLoading[activeRoundIdx] ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-[#55A4DA] text-[#55A4DA] hover:bg-[#55A4DA]/5'}`} title={topic.trim() ? '현재 주제로 콘텐츠 다시 가져오기' : '주제를 먼저 선택하세요'}><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>콘텐츠 다시 가져오기</button>
@@ -985,7 +1056,6 @@ function ConfigureContent() {
         {/* 인터랙션 요소 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <button onClick={() => toggleSectionKey(kInter)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
-            <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">4</span>
             <p className="text-sm font-bold text-gray-800 flex-1 text-left">인터랙션 요소</p>
             {interactions.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{interactions.map(v => INTERACTION_LABELS[v] ?? v).join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
             <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${isSectionOpen(kInter) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -1005,7 +1075,6 @@ function ConfigureContent() {
         {/* 만족도 조사 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <button onClick={() => toggleSectionKey(kSurvey)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
-            <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">5</span>
             <p className="text-sm font-bold text-gray-800 flex-1 text-left">만족도 조사</p>
             {surveys.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{surveys.map(v => v === 'always' ? '상시' : '정기').join(' · ')}</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
             <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${isSectionOpen(kSurvey) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -1307,62 +1376,46 @@ function ConfigureContent() {
     const group = isCustom ? activeGroups.find(g => g.id === targetId) : undefined;
     const topic = isCustom ? (group?.topic ?? '') : r.topic;
     const contents = isCustom ? (group?.contents ?? []) : r.contents;
-    const gi = isCustom ? activeGroups.findIndex(g => g.id === targetId) : -1;
-    const targetLabel = isCustom ? `맞춤형 그룹 ${gi + 1} · ${group?.types.join('+') ?? ''}` : '일반형';
-    const targetCount = isCustom ? (group?.leaderIds.length ?? 0) : r.generalLeaderIds.length;
     const firstThumbnail = contents[0]?.thumbnail ?? '';
     const hasConfig = topic.trim().length > 0 || contents.length > 0;
     const leadershipLabel = isCustom ? (group?.types.join(', ') ?? '') : '일반형';
     const key = `${activeRoundIdx}:${targetId}`;
-    const generating = livePreviewGenerating.has(key);
     const generated = livePreviewContent[key];
-
-    const labelBar = (
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-bold text-[#2E7DB5]">{targetLabel} <span className="font-normal text-gray-400">· 대상 {targetCount}명</span></p>
-        {generating && (
-          <span className="text-[10px] text-[#55A4DA] font-semibold flex items-center gap-1 flex-shrink-0">
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-            업데이트 중
-          </span>
-        )}
-      </div>
-    );
 
     if (!hasConfig) {
       return (
-        <div className="space-y-2">
-          {labelBar}
-          <div className="rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-2 text-center">
-            <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            <p className="text-xs text-gray-400">콘텐츠를 추가하면 여기에 표시됩니다</p>
-          </div>
+        <div className="h-full min-h-[480px] rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-2 text-center">
+          <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          <p className="text-xs text-gray-400">콘텐츠를 추가하면 여기에 표시됩니다</p>
         </div>
       );
     }
 
     if (!generated) {
       return (
-        <div className="space-y-2">
-          {labelBar}
-          <div className="rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-3 text-center">
-            <svg className="w-7 h-7 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-            <p className="text-xs text-gray-500">AI가 미리보기 본문을 생성 중입니다...</p>
-          </div>
+        <div className="h-full min-h-[480px] rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-3 text-center">
+          <svg className="w-7 h-7 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+          <p className="text-xs text-gray-500">AI가 미리보기 본문을 생성 중입니다...</p>
         </div>
       );
     }
 
-    return (
-      <div className="space-y-2">
-        {labelBar}
-        {renderGeneratedFullBody(generated, { vol: activeRoundIdx + 1, dateLabel: '발송일 미정', leadershipLabel, firstThumbnail })}
-      </div>
-    );
+    return renderGeneratedFullBody(generated, { vol: activeRoundIdx + 1, dateLabel: '발송일 미정', leadershipLabel, firstThumbnail });
   }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+
+      {/* 전 회차 자동 구성 로딩 오버레이 */}
+      {autoComposing && (
+        <div className="fixed inset-0 z-[60] bg-white/85 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+          <svg className="w-10 h-10 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+          <div className="text-center">
+            <p className="text-sm font-bold text-gray-800">AI가 콘텐츠를 자동으로 구성하고 있습니다...</p>
+            <p className="text-xs text-gray-400 mt-1">전 회차의 주제와 콘텐츠를 준비 중입니다. 잠시만 기다려 주세요.</p>
+          </div>
+        </div>
+      )}
 
       {/* ── 상단 토퍼 ── */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
@@ -1997,12 +2050,12 @@ function ConfigureContent() {
                   const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
                   const current = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
                   return (
-                    <div className="space-y-3">
-                      <div className="pb-1">
+                    <div className="flex flex-col h-full">
+                      <div className="pb-3 flex-shrink-0">
                         <p className="text-base font-bold text-gray-800">실시간 미리보기</p>
                         <p className="text-[11px] text-gray-400 mt-0.5">선택한 대상이 받게 될 뉴스레터 화면</p>
                       </div>
-                      <div className="max-w-md mx-auto w-full">
+                      <div className="w-full flex-1">
                         {renderLivePreview(current)}
                       </div>
                     </div>
@@ -2079,7 +2132,6 @@ function ConfigureContent() {
 
                   {/* 일반형 섹션 (일반형 탭일 때만) */}
                   {currentTarget === 'general' && (() => {
-                    const hasCustom = r.customGroups.some(g => g.types.length > 0);
                     const generalParticipants = selectedParticipants.filter(p => r.generalLeaderIds.includes(p.id));
                     const posCount = generalParticipants.filter(p => POSITIVE_TYPES.includes(p.leadershipType)).length;
                     const negParts = (r.generalTypes ?? []).map(t => {
@@ -2093,9 +2145,7 @@ function ConfigureContent() {
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     <button onClick={() => toggleSectionKey('panel:general')} className="w-full px-5 py-3 flex items-center gap-2 transition-colors hover:bg-gray-50">
                       <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-bold text-gray-800">
-                          일반형 <span className="font-normal text-gray-400">({hasCustom ? `나머지 ${r.generalLeaderIds.length}명` : `${selectedParticipants.length}명`})</span>
-                        </p>
+                        <p className="text-sm font-bold text-gray-800">일반형</p>
                         {parts.length > 0 && <p className="text-[11px] text-gray-400 mt-0.5">{parts.join(' + ')}</p>}
                       </div>
                       <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isSectionOpen('panel:general') ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
