@@ -292,6 +292,14 @@ function ConfigureContent() {
     return JSON.stringify({ roundIdx: activeRoundIdx, targetId, topic, ids: contents.map(c => c.id), interactions, surveys });
   }, [wizardStep, activeRoundIdx, previewTargetId, rounds]);
 
+  // 미리보기 모달: 열림/회차 탭 전환 시 해당 회차가 미생성이면 자동 생성 (첫 회차 자동 + 나머지는 탭 클릭 시)
+  useEffect(() => {
+    if (!previewOpen) return;
+    if (generatedContent[previewTab] || generatingRounds.has(previewTab)) return;
+    void handleGenerateRound(previewTab);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewOpen, previewTab]);
+
   // 구성 변경 시 debounce 500ms 후 미리보기 본문 자동 생성
   useEffect(() => {
     if (!previewSignature) return;
@@ -2761,39 +2769,14 @@ function ConfigureContent() {
                     const firstThumbnail = activeRound.contents[0]?.thumbnail ?? '';
                     const schedDate = schedDates[previewTab];
 
-                    if (isGenerating) {
+                    if (isGenerating || !generated) {
                       return (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
                           <svg className="w-8 h-8 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
-                          <p className="text-sm text-gray-500 font-medium">AI가 뉴스레터를 작성 중입니다...</p>
-                        </div>
-                      );
-                    }
-
-                    if (!generated) {
-                      return (
-                        <div className="flex flex-col items-center justify-center py-12 gap-4">
-                          <div className="w-12 h-12 rounded-full bg-[#55A4DA]/10 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm font-bold text-gray-700 mb-1">{previewTab + 1}회차 뉴스레터</p>
-                            <p className="text-xs text-gray-400">AI가 이 회차의 뉴스레터 본문을 생성합니다.</p>
-                          </div>
-                          <button
-                            onClick={() => handleGenerateRound(previewTab)}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            AI 뉴스레터 생성하기
-                          </button>
+                          <p className="text-sm text-gray-500 font-medium">{previewTab + 1}회차 뉴스레터를 AI가 작성 중입니다...</p>
                         </div>
                       );
                     }
@@ -3030,7 +3013,7 @@ function ConfigureContent() {
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           >
-            생성 완료
+            생성
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
