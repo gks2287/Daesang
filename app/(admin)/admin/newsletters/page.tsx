@@ -250,13 +250,22 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 // ── 복구 팝업 ─────────────────────────────────────────────────────────
-function RecoveryModal({ companyNames, stepLabel, onNew, onContinue }: {
+function RecoveryModal({ companyNames, stepLabel, onNew, onContinue, onClose }: {
   companyNames: string[]; stepLabel: string;
-  onNew: () => void; onContinue: () => void;
+  onNew: () => void; onContinue: () => void; onClose: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+        <button
+          onClick={onClose}
+          className="absolute top-3.5 right-3.5 text-gray-300 hover:text-gray-500 transition-colors"
+          title="닫기"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
             <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -862,7 +871,7 @@ function NewslettersContent() {
       )}
       {showRecovery && (
         <RecoveryModal companyNames={draftCompanyNames} stepLabel={draftStepLabel}
-          onNew={handleNewDraft} onContinue={handleContinueDraft} />
+          onNew={handleNewDraft} onContinue={handleContinueDraft} onClose={() => setShowRecovery(false)} />
       )}
     </div>
   );
