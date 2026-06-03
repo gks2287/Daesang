@@ -13,7 +13,7 @@ import { useNewNewsletterDraftStore, type TopicSuggestion as DraftTopicSuggestio
 import { useParticipantStore, POSITIVE_TYPES, NEGATIVE_TYPES } from '@/store/participantStore';
 
 type DeliveryInterval = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual';
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 type TopicSuggestion = DraftTopicSuggestion;
 
 type GeneratedNewsletterSection = {
@@ -70,8 +70,9 @@ const DELIVERY_INTERVAL_OPTIONS: Array<{ value: DeliveryInterval; label: string;
 const WIZARD_STEPS: Array<{ n: WizardStep; label: string }> = [
   { n: 1, label: '스토리라인' },
   { n: 2, label: '회차 설계' },
-  { n: 3, label: '콘텐츠 구성' },
-  { n: 4, label: '발송 주기' },
+  { n: 3, label: '유형 배분' },
+  { n: 4, label: '콘텐츠 구성' },
+  { n: 5, label: '발송 주기' },
 ];
 
 const POSITIVE_LEADERSHIP_TYPES = new Set(['코칭형', '민주형', '서번트형', '비전형', '관계중심형']);
@@ -96,6 +97,7 @@ function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]
       interactions: [],
       surveys: [],
       newsletterType: '일반형' as const,
+      generalTypes: [],
       customTypes: [],
       customLeaderIds: [],
       generalLeaderIds: [],
@@ -156,6 +158,7 @@ function ConfigureContent() {
   const negativeParticipants = selectedParticipants.filter(p => NEGATIVE_TYPES.includes(p.leadershipType));
 
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
 
   function handleCancel() {
     localStorage.removeItem('newsletter_draft_saved');
@@ -165,7 +168,7 @@ function ConfigureContent() {
 
   // ── 위저드 단계 ──
   const [wizardStep, setWizardStep] = useState<WizardStep>(
-    Math.min(configDraft.wizardStep, 4) as WizardStep
+    Math.min(configDraft.wizardStep, 5) as WizardStep
   );
 
   // ── 1단계: 스토리라인 편집 ──
@@ -186,7 +189,11 @@ function ConfigureContent() {
       : configDraft.customStoryline.map((_, i) => ({ stepIndex: i, count: 1 }))
   );
 
-  // ── 3단계: 콘텐츠 구성 (회차별 통합) ──
+  // ── 3단계: 리더십 유형 배분 ──
+  const [distributionRoundIdx, setDistributionRoundIdx] = useState(0);
+  const [dragOverTarget, setDragOverTarget] = useState<'general' | 'custom' | null>(null);
+
+  // ── 4단계: 콘텐츠 구성 (회차별 통합) ──
   const [rounds, setRounds] = useState<Round[]>(configDraft.rounds);
   const [activeRoundIdx, setActiveRoundIdx] = useState(0);
 
@@ -239,6 +246,15 @@ function ConfigureContent() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution]);
+
+  // Step 4 진입/회차 전환 시 주제가 없으면 AI 자동 추천
+  useEffect(() => {
+    if (wizardStep !== 4) return;
+    const r = rounds[activeRoundIdx];
+    if (!r || r.topic.trim()) return;
+    void fetchTopicsForRound(activeRoundIdx, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizardStep, activeRoundIdx]);
 
   // 회차 전환 시 아코디언 초기화
   useEffect(() => {
@@ -593,17 +609,12 @@ function ConfigureContent() {
     if (wizardStep === 1) return configDraft.companyIds.length > 0;
     if (wizardStep === 2) return distSum === totalRounds && totalRounds >= customStoryline.length;
     if (wizardStep === 3) return true;
-    // TODO: 나중에 아래 조건으로 복원
-    // if (wizardStep === 3) return rounds.every(r =>
-    //   r.newsletterType === '맞춤형'
-    //     ? r.customTopic.trim().length > 0 && r.topic.trim().length > 0
-    //     : r.topic.trim().length > 0
-    // );
+    if (wizardStep === 4) return true;
     return true;
   }
 
   function goNext() {
-    if (wizardStep >= 4 || !canGoNext()) return;
+    if (wizardStep >= 5 || !canGoNext()) return;
     if (wizardStep === 2) {
       const newBase = makeRoundsFromDistribution(roundDistribution);
       const newTotal = newBase.length;
@@ -613,6 +624,27 @@ function ConfigureContent() {
         const extras = newBase.slice(prev.length);
         return [...prev, ...extras];
       });
+      setActiveRoundIdx(0);
+      setSuggestions([]);
+      setDistributionRoundIdx(0);
+    }
+    if (wizardStep === 3) {
+      // generalTypes 기반으로 각 round의 customTypes/leaderIds 자동 세팅
+      setRounds(prev => prev.map(r => {
+        const negInGeneral = r.generalTypes ?? [];
+        const newCustomTypes = NEGATIVE_TYPES.filter(t =>
+          !negInGeneral.includes(t) && negativeParticipants.some(p => p.leadershipType === t)
+        );
+        const newCustomLeaderIds = selectedParticipants.filter(p => newCustomTypes.includes(p.leadershipType)).map(p => p.id);
+        const newGeneralLeaderIds = selectedParticipants.filter(p => !newCustomTypes.includes(p.leadershipType)).map(p => p.id);
+        return {
+          ...r,
+          customTypes: newCustomTypes,
+          customLeaderIds: newCustomLeaderIds,
+          generalLeaderIds: newGeneralLeaderIds,
+          newsletterType: newCustomTypes.length > 0 ? '맞춤형' as const : '일반형' as const,
+        };
+      }));
       setActiveRoundIdx(0);
       setSuggestions([]);
     }
@@ -766,30 +798,81 @@ function ConfigureContent() {
         </div>
       </div>
 
-      {/* ── 기업 선택 바 ── */}
-      <div className="bg-white border-b border-gray-200 px-8 py-2.5 flex items-center gap-4 flex-shrink-0">
-        <span className="text-xs text-gray-400 flex-shrink-0">대상 기업</span>
-        <select
-          value={configDraft.companyIds[0] ?? ''}
-          onChange={e => {
-            const id = Number(e.target.value);
-            configDraft.setDraft({ companyIds: id ? [id] : [] });
-          }}
-          className="text-sm font-semibold text-gray-800 border border-gray-200 rounded-lg px-3 py-1 bg-white focus:outline-none focus:border-[#55A4DA] min-w-[160px]"
-        >
-          <option value="">기업을 선택해주세요</option>
-          {companies.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <div className="w-px h-4 bg-gray-200" />
-        <span className="text-xs text-gray-500">
-          대상 리더 <span className="font-semibold text-gray-700">{selectedParticipants.length}명</span>
-        </span>
-      </div>
+      {/* ── 기업 선택: 미선택 시 전체 화면 ── */}
+      {configDraft.companyIds.length === 0 && (() => {
+        const filtered = companies.filter(c => !companySearch.trim() || c.name.includes(companySearch.trim()));
+        return (
+          <div className="flex-1 overflow-y-auto bg-[#F8FAFC] flex flex-col items-center justify-center p-8">
+            <div className="w-full max-w-3xl">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">어떤 기업의 뉴스레터를 제작하시겠습니까?</h2>
+                <p className="text-sm text-gray-400">기업을 선택하면 바로 시작됩니다.</p>
+              </div>
+              <div className="relative mb-6">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="기업명 검색"
+                  value={companySearch}
+                  onChange={e => setCompanySearch(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition"
+                  autoFocus
+                />
+              </div>
+              {filtered.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-10">검색 결과가 없습니다.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-4">
+                  {filtered.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        configDraft.setDraft({ companyIds: [c.id] });
+                        setCompanySearch('');
+                      }}
+                      className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-gray-200 rounded-2xl hover:border-[#55A4DA] hover:shadow-md transition-all group text-center"
+                    >
+                      <div className={`w-14 h-14 rounded-2xl ${c.color} flex items-center justify-center flex-shrink-0`}>
+                        <span className="text-white text-base font-bold">{c.initials}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800 group-hover:text-[#2E7DB5] transition-colors">{c.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{c.industry}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── 기업 정보 바 (선택 후) ── */}
+      {configDraft.companyIds.length > 0 && (
+        <div className="bg-white border-b border-gray-200 px-8 py-2 flex items-center gap-3 flex-shrink-0">
+          <span className="text-xs text-gray-400">대상 기업</span>
+          <span className="text-sm font-semibold text-gray-800">{targetCompanies[0]?.name ?? '—'}</span>
+          <button
+            onClick={() => {
+              configDraft.setDraft({ companyIds: [], wizardStep: 1, rounds: [] });
+              setWizardStep(1);
+            }}
+            className="text-xs font-medium text-[#55A4DA] hover:text-[#2E7DB5] transition-colors"
+          >
+            변경
+          </button>
+          <div className="w-px h-4 bg-gray-200" />
+          <span className="text-xs text-gray-500">
+            대상 리더 <span className="font-semibold text-gray-700">{selectedParticipants.length}명</span>
+          </span>
+        </div>
+      )}
 
       {/* ── 스테퍼 ── */}
-      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-center flex-shrink-0">
+      {configDraft.companyIds.length > 0 && <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-center flex-shrink-0">
         <div className="flex items-center">
           {WIZARD_STEPS.map((s, i) => {
             const isDone = s.n < wizardStep;
@@ -823,12 +906,12 @@ function ConfigureContent() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ════════════════════════════════
           1단계: 스토리라인
       ════════════════════════════════ */}
-      {wizardStep === 1 && (
+      {wizardStep === 1 && configDraft.companyIds.length > 0 && (
         <div className="flex-1 overflow-hidden bg-[#F8FAFC] flex flex-col">
           <div className="w-full px-8 py-6 flex flex-col flex-1 justify-center">
             <div className="mb-4 flex-shrink-0">
@@ -1031,9 +1114,184 @@ function ConfigureContent() {
       )}
 
       {/* ════════════════════════════════
-          3단계: 콘텐츠 구성 (회차별 통합)
+          3단계: 리더십 유형 배분
       ════════════════════════════════ */}
       {wizardStep === 3 && (
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+          <div className="w-full px-8 py-6 space-y-5">
+            <div>
+              <h2 className="text-base font-bold text-gray-800 mb-1">리더십 유형 배분</h2>
+              <p className="text-xs text-gray-400">회차별로 맞춤형/일반형 대상 리더를 설정합니다. 부정 리더는 유형 단위로 드래그해 이동할 수 있습니다.</p>
+            </div>
+
+            {/* 회차 탭 */}
+            {rounds.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {rounds.map((r, idx) => {
+                  const s = customStoryline[r.stepIndex];
+                  const isActive = idx === distributionRoundIdx;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setDistributionRoundIdx(idx)}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold border-2 transition-all ${
+                        isActive ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]' : 'border-gray-200 text-gray-500 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      {idx + 1}회차
+                      {s && <span className="ml-1.5 font-normal text-gray-400">{s.title}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 배분 카드 */}
+            {rounds[distributionRoundIdx] !== undefined && (() => {
+              const r = rounds[distributionRoundIdx];
+              const negInGeneral = r.generalTypes ?? [];
+              const negTypes = NEGATIVE_TYPES.filter(t => negativeParticipants.some(p => p.leadershipType === t));
+              const negInCustom = negTypes.filter(t => !negInGeneral.includes(t));
+              const negInGeneralFiltered = negInGeneral.filter(t => negativeParticipants.some(p => p.leadershipType === t));
+
+              const generalCount = positiveParticipants.length + negInGeneralFiltered.reduce((sum, t) => sum + negativeParticipants.filter(p => p.leadershipType === t).length, 0);
+              const customCount = negInCustom.reduce((sum, t) => sum + negativeParticipants.filter(p => p.leadershipType === t).length, 0);
+
+              function moveToGeneral(type: string) {
+                setRounds(prev => prev.map((round, i) => i !== distributionRoundIdx ? round : {
+                  ...round,
+                  generalTypes: round.generalTypes?.includes(type) ? round.generalTypes : [...(round.generalTypes ?? []), type],
+                }));
+              }
+
+              function moveToCustom(type: string) {
+                setRounds(prev => prev.map((round, i) => i !== distributionRoundIdx ? round : {
+                  ...round,
+                  generalTypes: (round.generalTypes ?? []).filter(t => t !== type),
+                }));
+              }
+
+              const TypeGroupCard = ({ type, onDragStart }: { type: string; onDragStart: (e: React.DragEvent) => void }) => {
+                const members = negativeParticipants.filter(p => p.leadershipType === type);
+                return (
+                  <div
+                    draggable
+                    onDragStart={onDragStart}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl cursor-grab active:cursor-grabbing hover:border-[#55A4DA]/50 hover:shadow-sm transition-all select-none shadow-sm"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-[#55A4DA] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900">{type}</p>
+                      <p className="text-[10px] text-gray-600">{members.map(p => p.name).join(', ')}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-700 flex-shrink-0">{members.length}명</span>
+                    <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
+                );
+              };
+
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  {/* 일반형 카드 */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOverTarget('general'); }}
+                    onDragLeave={() => setDragOverTarget(null)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const type = e.dataTransfer.getData('leadershipType');
+                      if (type) moveToGeneral(type);
+                      setDragOverTarget(null);
+                    }}
+                    className={`rounded-2xl border-2 transition-all ${dragOverTarget === 'general' ? 'border-blue-400 bg-blue-50/30' : 'border-gray-200 bg-white'}`}
+                  >
+                    <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+                      <p className="text-sm font-bold text-gray-800 flex-1">일반형</p>
+                      <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{generalCount}명</span>
+                    </div>
+                    <div className="p-4 space-y-2 min-h-[180px]">
+                      {positiveParticipants.length > 0 && (
+                        <>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">긍정 리더 (고정)</p>
+                          {positiveParticipants.map(p => (
+                            <div key={p.id} className="flex items-center gap-2.5 px-3.5 py-2 bg-emerald-50 border border-emerald-100 rounded-xl opacity-70">
+                              <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                              <span className="text-xs font-semibold text-gray-700 flex-1">{p.name}</span>
+                              <span className="text-[10px] text-emerald-600">{p.leadershipType}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {negInGeneralFiltered.length > 0 && (
+                        <>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mt-3 mb-1.5">이동된 부정 리더</p>
+                          {negInGeneralFiltered.map(type => (
+                            <TypeGroupCard
+                              key={type}
+                              type={type}
+                              onDragStart={e => e.dataTransfer.setData('leadershipType', type)}
+                            />
+                          ))}
+                        </>
+                      )}
+                      {positiveParticipants.length === 0 && negInGeneralFiltered.length === 0 && (
+                        <div className="flex items-center justify-center h-24 text-xs text-gray-300">
+                          유형을 드래그해 이동하세요
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 맞춤형 카드 */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOverTarget('custom'); }}
+                    onDragLeave={() => setDragOverTarget(null)}
+                    onDrop={e => {
+                      e.preventDefault();
+                      const type = e.dataTransfer.getData('leadershipType');
+                      if (type) moveToCustom(type);
+                      setDragOverTarget(null);
+                    }}
+                    className={`rounded-2xl border-2 transition-all ${dragOverTarget === 'custom' ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 bg-white'}`}
+                  >
+                    <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-2">
+                      <p className="text-sm font-bold text-gray-800 flex-1">맞춤형</p>
+                      <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{customCount}명</span>
+                    </div>
+                    <div className="p-4 space-y-2 min-h-[180px]">
+                      {negInCustom.length > 0 ? (
+                        negInCustom.map(type => (
+                          <TypeGroupCard
+                            key={type}
+                            type={type}
+                            onDragStart={e => e.dataTransfer.setData('leadershipType', type)}
+                          />
+                        ))
+                      ) : (
+                        <div className="flex items-center justify-center h-24 text-xs text-gray-300">
+                          모든 부정 리더가 일반형으로 이동됐습니다
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {rounds.length === 0 && (
+              <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+                2단계에서 회차를 먼저 설계해주세요.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════
+          4단계: 콘텐츠 구성 (회차별 통합)
+      ════════════════════════════════ */}
+      {wizardStep === 4 && (
         <div className="flex-1 overflow-hidden bg-[#F8FAFC] flex">
 
           {/* 왼쪽: 회차 목록 (w-72, 독립 스크롤) */}
@@ -1267,7 +1525,6 @@ function ConfigureContent() {
                   {r.newsletterType === '맞춤형' && r.customTypes.length > 0 && (
                     <div className="bg-[#55A4DA]/5 rounded-2xl border border-[#55A4DA]/30 overflow-hidden">
                       <button onClick={() => setCustomPanelOpen(prev => !prev)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-[#55A4DA]/10 transition-colors">
-                        <span className="text-sm">🎯</span>
                         <p className="text-sm font-bold text-[#2E7DB5] flex-1 text-left">맞춤형 · {r.customTypes.join('+')} <span className="font-normal text-[#55A4DA]/70">({r.customLeaderIds.length}명)</span></p>
                         <svg className={`w-3.5 h-3.5 text-[#55A4DA] flex-shrink-0 transition-transform duration-200 ${customPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </button>
@@ -1401,7 +1658,6 @@ function ConfigureContent() {
                   {/* 일반형 섹션 */}
                   <div className={`rounded-2xl overflow-hidden ${r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? 'bg-gray-50 border border-gray-200' : 'bg-white border border-gray-200 shadow-sm'}`}>
                     <button onClick={() => setGeneralPanelOpen(prev => !prev)} className={`w-full px-5 py-3 flex items-center gap-2 transition-colors ${r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
-                      <span className="text-sm">📋</span>
                       <p className="text-sm font-bold text-gray-800 flex-1 text-left">일반형 <span className="font-normal text-gray-400">({r.newsletterType === '맞춤형' && r.customTypes.length > 0 ? `나머지 ${r.generalLeaderIds.length}명` : `${selectedParticipants.length}명`})</span></p>
                       <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-200 ${generalPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                     </button>
@@ -1540,9 +1796,9 @@ function ConfigureContent() {
       )}
 
       {/* ════════════════════════════════
-          4단계: 발송 주기
+          5단계: 발송 주기
       ════════════════════════════════ */}
-      {wizardStep === 4 && (
+      {wizardStep === 5 && (
         <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
           <div className="w-full px-8 py-6 space-y-5">
 
@@ -2135,7 +2391,7 @@ function ConfigureContent() {
                   {activeRound && (() => {
                     const isGenerating = generatingRounds.has(previewTab);
                     const generated = generatedContent[previewTab];
-                    const contentTab = previewContentTab[previewTab] ?? 'email';
+                    const contentTab = previewContentTab[previewTab] ?? 'full';
                     const firstThumbnail = activeRound.contents[0]?.thumbnail ?? '';
                     const schedDate = schedDates[previewTab];
 
@@ -2181,7 +2437,7 @@ function ConfigureContent() {
                         {/* 서브탭 + 다시생성 */}
                         <div className="flex items-center justify-between">
                           <div className="flex gap-1">
-                            {(['email', 'full'] as const).map(tab => (
+                            {(['full', 'email'] as const).map(tab => (
                               <button
                                 key={tab}
                                 onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: tab }))}
@@ -2191,7 +2447,7 @@ function ConfigureContent() {
                                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                                 }`}
                               >
-                                {tab === 'email' ? '이메일 미리보기' : '전체 본문'}
+                                {tab === 'full' ? '전체 본문' : '이메일 미리보기'}
                               </button>
                             ))}
                           </div>
@@ -2390,7 +2646,7 @@ function ConfigureContent() {
                                       const c = ia.content as { items: string[] };
                                       return (
                                         <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
                                           <div className="space-y-2">
                                             {(c.items ?? []).map((item, i) => (
                                               <div key={i} className="flex items-start gap-2.5">
@@ -2422,10 +2678,10 @@ function ConfigureContent() {
                                       const c = ia.content as { do: string[]; dont: string[] };
                                       return (
                                         <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                                          <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
                                           <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-white rounded-xl p-3 border border-emerald-200">
-                                              <p className="text-xs font-bold text-emerald-600 mb-2">✅ Do</p>
+                                              <p className="text-xs font-bold text-emerald-600 mb-2">Do</p>
                                               <ul className="space-y-1.5">
                                                 {(c.do ?? []).map((item, i) => (
                                                   <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-emerald-500 flex-shrink-0 mt-0.5">•</span>{item}</li>
@@ -2433,7 +2689,7 @@ function ConfigureContent() {
                                               </ul>
                                             </div>
                                             <div className="bg-white rounded-xl p-3 border border-red-200">
-                                              <p className="text-xs font-bold text-red-500 mb-2">❌ Don't</p>
+                                              <p className="text-xs font-bold text-red-500 mb-2">Don't</p>
                                               <ul className="space-y-1.5">
                                                 {(c.dont ?? []).map((item, i) => (
                                                   <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-red-400 flex-shrink-0 mt-0.5">•</span>{item}</li>
@@ -2534,6 +2790,16 @@ function ConfigureContent() {
                                 <p className="text-sm text-gray-600 leading-relaxed italic mb-2">{generated.closing}</p>
                                 <p className="text-xs text-gray-400 font-semibold">J&Company 코칭팀 드림</p>
                               </div>
+                              {/* 마이페이지 바로가기 */}
+                              <div className="flex justify-center py-1">
+                                <button className="flex items-center gap-2 px-6 py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-2xl transition-colors shadow-sm">
+                                  내 마이페이지 바로가기
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              </div>
+
                               {/* 푸터 */}
                               <div className="flex items-center justify-between pb-1">
                                 <img src="/logo-jc.png" alt="J&Company" className="h-5 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
@@ -2616,7 +2882,7 @@ function ConfigureContent() {
       )}
 
       {/* ── 하단 네비게이션 ── */}
-      <div className="bg-white border-t border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+      {configDraft.companyIds.length > 0 && <div className="bg-white border-t border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
         {wizardStep > 1 ? (
           <button
             onClick={goPrev}
@@ -2629,7 +2895,7 @@ function ConfigureContent() {
           </button>
         ) : <div />}
 
-        {wizardStep < 4 && (
+        {wizardStep < 5 && (
           <div className="relative group">
             {wizardStep === 1 && configDraft.companyIds.length === 0 && (
               <div className="absolute bottom-full mb-2 right-0 whitespace-nowrap bg-gray-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -2652,7 +2918,7 @@ function ConfigureContent() {
             </button>
           </div>
         )}
-        {wizardStep === 4 && (
+        {wizardStep === 5 && (
           <button
             onClick={handleComplete}
             disabled={!deliveryInterval || !startDate}
@@ -2668,7 +2934,7 @@ function ConfigureContent() {
             </svg>
           </button>
         )}
-      </div>
+      </div>}
 
     </div>
   );
