@@ -776,26 +776,28 @@ function ConfigureContent() {
           </svg>
           <span className="text-gray-800 font-bold">콘텐츠 구성</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCancelConfirm(true)}
-            className="text-sm font-medium text-gray-400 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            나가기
-          </button>
-          <button
-            onClick={handleSaveInPlace}
-            className="text-sm font-medium border border-[#55A4DA] text-[#55A4DA] px-4 py-1.5 rounded-lg hover:bg-[#55A4DA]/5 transition-colors"
-          >
-            저장
-          </button>
-          <button
-            onClick={handleDraftSave}
-            className="text-sm font-medium bg-[#55A4DA] hover:bg-[#3A8BC4] text-white px-4 py-1.5 rounded-lg transition-colors"
-          >
-            임시저장
-          </button>
-        </div>
+        {configDraft.companyIds.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="text-sm font-medium text-gray-400 px-4 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              나가기
+            </button>
+            <button
+              onClick={handleSaveInPlace}
+              className="text-sm font-medium border border-[#55A4DA] text-[#55A4DA] px-4 py-1.5 rounded-lg hover:bg-[#55A4DA]/5 transition-colors"
+            >
+              저장
+            </button>
+            <button
+              onClick={handleDraftSave}
+              className="text-sm font-medium bg-[#55A4DA] hover:bg-[#3A8BC4] text-white px-4 py-1.5 rounded-lg transition-colors"
+            >
+              임시저장
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── 기업 선택: 미선택 시 전체 화면 ── */}
@@ -805,8 +807,8 @@ function ConfigureContent() {
           <div className="flex-1 overflow-y-auto bg-[#F8FAFC] flex flex-col items-center justify-center p-8">
             <div className="w-full max-w-3xl">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">어떤 기업의 뉴스레터를 제작하시겠습니까?</h2>
-                <p className="text-sm text-gray-400">기업을 선택하면 바로 시작됩니다.</p>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">뉴스레터 대상 기업 선택</h2>
+                <p className="text-sm text-gray-400">뉴스레터를 발송할 기업을 선택해주세요.</p>
               </div>
               <div className="relative mb-6">
                 <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
