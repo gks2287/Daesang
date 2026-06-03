@@ -2,23 +2,38 @@ import type { ContentPoolItem } from '@/lib/api/contentPool';
 
 export type ContentType = '글' | '영상' | '인포그래픽' | '카드뉴스';
 
+export type InteractionType = 'quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont';
+export type SurveyType = 'always' | 'periodic';
+
+// 맞춤형 그룹: 부정 리더십 유형 묶음 + 그룹별 독립 콘텐츠 구성
+export interface CustomGroup {
+  id: string;
+  types: string[];
+  leaderIds: number[];
+  // 그룹별 콘텐츠 구성
+  topic: string;
+  contents: ContentPoolItem[];
+  interactions: InteractionType[];
+  surveys: SurveyType[];
+}
+
 export interface Round {
   id: number;
   stepIndex: number;
   topic: string;
   contents: ContentPoolItem[];
-  interactions: ('quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont')[];
-  surveys: ('always' | 'periodic')[];
+  interactions: InteractionType[];
+  surveys: SurveyType[];
   newsletterType: '일반형' | '맞춤형';
   generalTypes: string[];   // 일반형으로 이동된 부정 리더십 유형 (기본 빈 배열 = 전체 맞춤형)
-  customTypes: string[];
   customLeaderIds: number[];
   generalLeaderIds: number[];
-  // 맞춤형 전용 콘텐츠 구성
-  customTopic: string;
-  customContents: ContentPoolItem[];
-  customInteractions: ('quiz' | 'scenario' | 'selfcheck' | 'reflection' | 'dodont')[];
-  customSurveys: ('always' | 'periodic')[];
+  // 맞춤형 그룹 (기존 customTypes/customTopic/customContents/... 대체)
+  customGroups: CustomGroup[];
+}
+
+export function makeCustomGroup(id: string, types: string[] = [], leaderIds: number[] = []): CustomGroup {
+  return { id, types, leaderIds, topic: '', contents: [], interactions: [], surveys: [] };
 }
 
 export interface ContentItem {
