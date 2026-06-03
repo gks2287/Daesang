@@ -245,6 +245,8 @@ function ConfigureContent() {
   const [previewOpenGroups, setPreviewOpenGroups] = useState<Set<number>>(new Set([0]));
   const [generatedContent, setGeneratedContent] = useState<Record<number, GeneratedNewsletter>>({});
   const [generatingRounds, setGeneratingRounds] = useState<Set<number>>(new Set());
+  // 최신 생성 결과 미러 (사전 생성 루프에서 stale closure 없이 참조)
+  const generatedContentRef = useRef<Record<number, GeneratedNewsletter>>({});
   const [previewContentTab, setPreviewContentTab] = useState<Record<number, 'email' | 'full'>>({});
 
   // ── draft store 동기화 ──
@@ -292,13 +294,15 @@ function ConfigureContent() {
     return JSON.stringify({ roundIdx: activeRoundIdx, targetId, topic, ids: contents.map(c => c.id), interactions, surveys });
   }, [wizardStep, activeRoundIdx, previewTargetId, rounds]);
 
-  // 미리보기 모달: 열림/회차 탭 전환 시 해당 회차가 미생성이면 자동 생성 (첫 회차 자동 + 나머지는 탭 클릭 시)
+  // 생성 결과 미러 동기화
+  useEffect(() => { generatedContentRef.current = generatedContent; }, [generatedContent]);
+
+  // 미리보기 모달 열림: Step 4 실시간 미리보기 결과 재활용 + 미생성 회차 백그라운드 순차 생성(1회차 우선)
   useEffect(() => {
     if (!previewOpen) return;
-    if (generatedContent[previewTab] || generatingRounds.has(previewTab)) return;
-    void handleGenerateRound(previewTab);
+    void runPreviewPregen();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewOpen, previewTab]);
+  }, [previewOpen]);
 
   // 구성 변경 시 debounce 500ms 후 미리보기 본문 자동 생성
   useEffect(() => {
@@ -362,8 +366,8 @@ function ConfigureContent() {
       });
       if (!res.ok) throw new Error('생성 실패');
       const data: GeneratedNewsletter = await res.json();
+      generatedContentRef.current = { ...generatedContentRef.current, [roundIdx]: data };
       setGeneratedContent(prev => ({ ...prev, [roundIdx]: data }));
-      setPreviewContentTab(prev => ({ ...prev, [roundIdx]: 'email' }));
     } catch (e) {
       console.error('뉴스레터 생성 오류:', e);
     } finally {
@@ -372,6 +376,23 @@ function ConfigureContent() {
         s.delete(roundIdx);
         return s;
       });
+    }
+  }
+
+  // 모달 진입 시: 실시간 미리보기(일반형) 결과 재활용 후, 미생성 회차를 1회차부터 순차 백그라운드 생성
+  async function runPreviewPregen() {
+    const seed: Record<number, GeneratedNewsletter> = {};
+    rounds.forEach((_, idx) => {
+      const reused = livePreviewContent[`${idx}:general`];
+      if (reused && !generatedContentRef.current[idx]) seed[idx] = reused;
+    });
+    if (Object.keys(seed).length > 0) {
+      generatedContentRef.current = { ...generatedContentRef.current, ...seed };
+      setGeneratedContent(prev => ({ ...seed, ...prev }));
+    }
+    for (let idx = 0; idx < rounds.length; idx++) {
+      if (generatedContentRef.current[idx]) continue; // 재활용/기존 생성 완료분은 건너뜀
+      await handleGenerateRound(idx);
     }
   }
 
@@ -2769,14 +2790,14 @@ function ConfigureContent() {
                     const firstThumbnail = activeRound.contents[0]?.thumbnail ?? '';
                     const schedDate = schedDates[previewTab];
 
-                    if (isGenerating || !generated) {
+                    // 데이터가 없을 때만 작은 스피너 (메시지 없음). 데이터가 있으면 갱신 중에도 기존 데이터 유지
+                    if (!generated) {
                       return (
-                        <div className="flex flex-col items-center justify-center py-16 gap-3">
-                          <svg className="w-8 h-8 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
+                        <div className="flex items-center justify-center py-16">
+                          <svg className="w-6 h-6 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                           </svg>
-                          <p className="text-sm text-gray-500 font-medium">{previewTab + 1}회차 뉴스레터를 AI가 작성 중입니다...</p>
                         </div>
                       );
                     }
@@ -2802,12 +2823,13 @@ function ConfigureContent() {
                           </div>
                           <button
                             onClick={() => handleGenerateRound(previewTab)}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                            disabled={isGenerating}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"
                           >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            다시 생성
+                            {isGenerating ? '갱신 중' : '다시 생성'}
                           </button>
                         </div>
 
