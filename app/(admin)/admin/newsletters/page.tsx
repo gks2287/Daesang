@@ -218,7 +218,14 @@ const MOCK_COMPANIES: CompanyData[] = [
   },
 ];
 
-const BADGE_CLS = 'bg-surface-ui text-text-primary';
+const leadershipColor: Record<string, string> = {
+  '독재형': 'bg-red-100 text-red-700', '방관형': 'bg-orange-100 text-orange-700',
+  '성과압박형': 'bg-purple-100 text-purple-700', '불통형': 'bg-pink-100 text-pink-700',
+  '불명확형': 'bg-indigo-100 text-indigo-700', '감정기복형': 'bg-amber-100 text-amber-700',
+  '코칭형': 'bg-blue-100 text-blue-700', '민주형': 'bg-sky-100 text-sky-700',
+  '비전형': 'bg-teal-100 text-teal-700', '지원형': 'bg-green-100 text-green-700',
+  '혁신형': 'bg-violet-100 text-violet-700',
+};
 
 function filterRounds(rounds: RoundData[], tab: TabType): RoundData[] {
   if (tab === '제작 중') return rounds.filter(r => r.status === 'inProgress');
@@ -257,25 +264,25 @@ function RecoveryModal({ companyNames, stepLabel, onNew, onContinue }: {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-text-primary">작업 중인 내용이 있습니다</h3>
-            <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
-              <span className="font-semibold text-text-primary">
+            <h3 className="text-sm font-bold text-gray-800">작업 중인 내용이 있습니다</h3>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              <span className="font-semibold text-gray-700">
                 {companyNames.length > 0 ? companyNames.join(', ') : '작업 중인 기업'}
               </span>의 뉴스레터를{' '}
-              <span className="font-semibold text-text-primary">{stepLabel}</span> 중이었습니다.
+              <span className="font-semibold text-gray-700">{stepLabel}</span> 중이었습니다.
             </p>
           </div>
         </div>
         <div className="flex gap-2">
           <button
             onClick={onNew}
-            className="flex-1 px-4 py-2 text-sm font-medium text-text-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-colors"
+            className="flex-1 px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             새로 만들기
           </button>
           <button
             onClick={onContinue}
-            className="flex-1 px-4 py-2 text-sm font-bold bg-brand hover:bg-brand-dark text-text-onBrand rounded-lg transition-colors"
+            className="flex-1 px-4 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors"
           >
             이어서 하기
           </button>
@@ -291,9 +298,9 @@ function PreviewModal({ target, onClose }: { target: PreviewTarget; onClose: () 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-light">
-          <h2 className="text-base font-bold text-text-primary">뉴스레터 미리보기</h2>
-          <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-base font-bold text-gray-800">뉴스레터 미리보기</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -301,45 +308,45 @@ function PreviewModal({ target, onClose }: { target: PreviewTarget; onClose: () 
         </div>
         <div className="p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center flex-shrink-0">
-              <span className="text-brand text-sm font-bold">{target.companyName.slice(0, 2)}</span>
+            <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-[#55A4DA] text-sm font-bold">{target.companyName.slice(0, 2)}</span>
             </div>
             <div>
-              <p className="text-sm font-bold text-text-primary">{target.companyName}</p>
+              <p className="text-sm font-bold text-gray-800">{target.companyName}</p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${target.polarity === 'positive' ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}>
                   {target.polarity === 'positive' ? '긍정적' : '부정적'}
                 </span>
-                <span className={`text-[10px] px-1.5 h-6 inline-flex items-center rounded font-semibold ${BADGE_CLS}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${leadershipColor[target.typeName] ?? 'bg-gray-100 text-gray-500'}`}>
                   {target.typeName}
                 </span>
-                <span className="text-xs text-text-secondary">{target.count}명</span>
+                <span className="text-xs text-gray-400">{target.count}명</span>
               </div>
             </div>
           </div>
-          <div className="bg-surface-subtle rounded-xl p-4 space-y-3">
+          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-text-primary">{target.round.round}회차</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-surface-ui text-text-secondary font-medium">{target.round.stage}</span>
+                <span className="text-sm font-bold text-gray-800">{target.round.round}회차</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 font-medium">{target.round.stage}</span>
               </div>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-yellow-50 text-yellow-600'}`}>
                 {isDone ? '제작완료' : '제작 중'}
               </span>
             </div>
-            <p className={`text-sm font-medium ${target.round.topic ? 'text-text-primary' : 'text-text-secondary italic'}`}>
+            <p className={`text-sm font-medium ${target.round.topic ? 'text-gray-700' : 'text-gray-400 italic'}`}>
               {target.round.topic ?? '주제 미선정'}
             </p>
             <div className="flex items-center gap-2">
-              <div className="flex-1 bg-surface-ui rounded-full h-2">
-                <div className={`h-2 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-brand'}`} style={{ width: `${target.round.progressPct}%` }} />
+              <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className={`h-2 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-[#55A4DA]'}`} style={{ width: `${target.round.progressPct}%` }} />
               </div>
-              <span className="text-xs font-semibold text-text-secondary">{target.round.progressPct}%</span>
+              <span className="text-xs font-semibold text-gray-500">{target.round.progressPct}%</span>
             </div>
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-border-light flex justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-text-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-colors">
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
             닫기
           </button>
         </div>
@@ -357,31 +364,31 @@ function SendConfirmModal({ target, onConfirm, onClose }: {
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg className="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-5 h-5 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-text-primary">뉴스레터 발송</h3>
-            <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
-              선택한 <span className="font-semibold text-text-primary">{totalCount}개</span> 뉴스레터를 발송하시겠습니까?
+            <h3 className="text-sm font-bold text-gray-800">뉴스레터 발송</h3>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              선택한 <span className="font-semibold text-gray-700">{totalCount}개</span> 뉴스레터를 발송하시겠습니까?
             </p>
             <ul className="mt-2.5 space-y-1.5">
               {target.selections.map(({ company, roundNums }) => (
                 <li key={company.companyId} className="flex items-baseline gap-1.5 text-[11px]">
-                  <span className="font-semibold text-text-primary flex-shrink-0">{company.companyName}</span>
-                  <span className="text-text-secondary flex-shrink-0">({company.totalLeaders}명)</span>
-                  <span className="text-text-secondary">— {roundNums.join('·')}회차</span>
+                  <span className="font-semibold text-gray-700 flex-shrink-0">{company.companyName}</span>
+                  <span className="text-gray-400 flex-shrink-0">({company.totalLeaders}명)</span>
+                  <span className="text-gray-500">— {roundNums.join('·')}회차</span>
                 </li>
               ))}
             </ul>
-            <p className="text-[11px] text-text-secondary mt-2.5">(각 기업·리더십 유형별 맞춤 내용으로 발송됩니다)</p>
+            <p className="text-[11px] text-gray-400 mt-2.5">(각 기업·리더십 유형별 맞춤 내용으로 발송됩니다)</p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-text-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-colors">취소</button>
-          <button onClick={onConfirm} className="px-4 py-2 text-sm font-bold bg-brand hover:bg-brand-dark text-text-onBrand rounded-lg transition-colors">발송</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+          <button onClick={onConfirm} className="px-4 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors">발송</button>
         </div>
       </div>
     </div>
@@ -397,25 +404,25 @@ function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab
 }) {
   const isDone = round.status === 'completed';
   return (
-    <div className={`flex items-center gap-3 ${isCompleteTab ? 'pl-16' : 'pl-24'} pr-5 py-2.5 border-b border-border-light last:border-b-0 bg-surface hover:bg-surface-hover transition-colors`}>
+    <div className={`flex items-center gap-3 ${isCompleteTab ? 'pl-16' : 'pl-24'} pr-5 py-2.5 border-b border-gray-100 last:border-b-0 bg-white hover:bg-gray-50/50 transition-colors`}>
       {isCompleteTab && (
         <input
           type="checkbox"
-          className="w-3.5 h-3.5 accent-brand cursor-pointer flex-shrink-0"
+          className="w-3.5 h-3.5 accent-[#55A4DA] cursor-pointer flex-shrink-0"
           checked={isSelected}
           onChange={e => onSelect(`${typeName}-${round.round}`, e.target.checked)}
         />
       )}
-      <span className="text-xs font-semibold text-text-secondary w-10 flex-shrink-0">{round.round}회차</span>
-      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-subtle text-text-secondary font-medium flex-shrink-0 w-9 text-center">{round.stage}</span>
-      <span className={`flex-1 text-sm min-w-0 truncate ${round.topic ? 'text-text-primary' : 'text-icon italic'}`}>
+      <span className="text-xs font-semibold text-gray-400 w-10 flex-shrink-0">{round.round}회차</span>
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium flex-shrink-0 w-9 text-center">{round.stage}</span>
+      <span className={`flex-1 text-sm min-w-0 truncate ${round.topic ? 'text-gray-700' : 'text-gray-300 italic'}`}>
         {round.topic ?? '주제 미선정'}
       </span>
       <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="w-20 bg-surface-subtle rounded-full h-1.5">
-          <div className={`h-1.5 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-brand'}`} style={{ width: `${round.progressPct}%` }} />
+        <div className="w-20 bg-gray-100 rounded-full h-1.5">
+          <div className={`h-1.5 rounded-full ${isDone ? 'bg-emerald-400' : 'bg-[#55A4DA]'}`} style={{ width: `${round.progressPct}%` }} />
         </div>
-        <span className="text-[11px] text-text-secondary w-8 text-right">{round.progressPct}%</span>
+        <span className="text-[11px] text-gray-400 w-8 text-right">{round.progressPct}%</span>
       </div>
       <div className="flex-shrink-0 w-[72px] text-right">
         {isDone ? (
@@ -425,7 +432,7 @@ function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab
           </button>
         ) : (
           <Link href="/admin/newsletters/new/configure"
-            className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-brand-50 text-brand hover:bg-brand-50/60 transition-colors whitespace-nowrap">
+            className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-[#55A4DA]/10 text-[#55A4DA] hover:bg-[#55A4DA]/20 transition-colors whitespace-nowrap">
             이어하기
           </Link>
         )}
@@ -446,13 +453,13 @@ function TypeRow({ typeData, visibleRounds, companyId, companyName, polarity, op
   return (
     <div>
       <button onClick={() => onToggle(key)}
-        className="w-full flex items-center gap-3 pl-16 pr-5 py-2.5 bg-surface border-b border-border-light hover:bg-surface-hover/60 transition-colors text-left">
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${BADGE_CLS}`}>
+        className="w-full flex items-center gap-3 pl-16 pr-5 py-2.5 bg-white border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-left">
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 ${leadershipColor[typeData.typeName] ?? 'bg-gray-100 text-gray-500'}`}>
           {typeData.typeName}
         </span>
-        <span className="text-sm text-text-secondary font-medium flex-1">{typeData.count}명</span>
-        <span className="text-xs text-text-secondary">{visibleRounds.length}회차</span>
-        <svg className={`w-3.5 h-3.5 text-text-secondary flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+        <span className="text-sm text-gray-600 font-medium flex-1">{typeData.count}명</span>
+        <span className="text-xs text-gray-400">{visibleRounds.length}회차</span>
+        <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -492,14 +499,14 @@ function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isComp
   return (
     <div>
       <button onClick={() => onToggle(key)}
-        className={`w-full flex items-center gap-3 pl-8 pr-5 py-2.5 border-b border-border-light transition-colors text-left ${isPositive ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'bg-red-50/20 hover:bg-red-50/40'}`}>
+        className={`w-full flex items-center gap-3 pl-8 pr-5 py-2.5 border-b border-gray-100 transition-colors text-left ${isPositive ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'bg-red-50/20 hover:bg-red-50/40'}`}>
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isPositive ? 'bg-blue-400' : 'bg-red-400'}`} />
         <span className={`text-sm font-semibold flex-1 ${isPositive ? 'text-blue-700' : 'text-red-700'}`}>
           {isPositive ? '긍정적 리더' : '부정적 리더'}
         </span>
-        <span className="text-xs text-text-secondary">{group.totalCount}명</span>
-        <span className="text-xs text-text-secondary ml-1">{totalVisible}회차</span>
-        <svg className={`w-3.5 h-3.5 text-text-secondary flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+        <span className="text-xs text-gray-500">{group.totalCount}명</span>
+        <span className="text-xs text-gray-400 ml-1">{totalVisible}회차</span>
+        <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -557,29 +564,29 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
   if (!hasVisible) return null;
 
   return (
-    <div className="border border-border-light rounded-xl overflow-hidden mb-3 shadow-sm">
+    <div className="border border-gray-200 rounded-xl overflow-hidden mb-3 shadow-sm">
       {/* 1단계 헤더 */}
       <button onClick={() => onToggle(key)}
-        className="w-full flex items-center gap-4 px-5 py-4 bg-surface-subtle/80 hover:bg-surface-subtle/60 transition-colors text-left">
-        <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center flex-shrink-0">
-          <span className="text-brand text-sm font-bold">{company.companyName.slice(0, 2)}</span>
+        className="w-full flex items-center gap-4 px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors text-left">
+        <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
+          <span className="text-[#55A4DA] text-sm font-bold">{company.companyName.slice(0, 2)}</span>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-text-primary">{company.companyName}</span>
-            <span className="text-xs text-text-secondary">리더 {company.totalLeaders}명</span>
-            <span className="text-icon">·</span>
-            <span className="text-xs text-text-secondary">{completedCount}/{totalCount}회차 완료</span>
+            <span className="text-sm font-bold text-gray-800">{company.companyName}</span>
+            <span className="text-xs text-gray-400">리더 {company.totalLeaders}명</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-xs text-gray-400">{completedCount}/{totalCount}회차 완료</span>
           </div>
           <div className="flex items-center gap-2 mt-1.5">
-            <div className="w-36 bg-surface-ui rounded-full h-1.5">
-              <div className="h-1.5 rounded-full bg-brand" style={{ width: `${progressPct}%` }} />
+            <div className="w-36 bg-gray-200 rounded-full h-1.5">
+              <div className="h-1.5 rounded-full bg-[#55A4DA]" style={{ width: `${progressPct}%` }} />
             </div>
-            <span className="text-[11px] text-text-secondary">{progressPct}%</span>
+            <span className="text-[11px] text-gray-400">{progressPct}%</span>
           </div>
         </div>
-        <span className="text-xs text-text-secondary flex-shrink-0">{formatRelativeTime(company.updatedAt)}</span>
-        <svg className={`w-4 h-4 text-text-secondary flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        <span className="text-xs text-gray-400 flex-shrink-0">{formatRelativeTime(company.updatedAt)}</span>
+        <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -599,8 +606,8 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
 
           {/* 회차별 전체선택 */}
           {isCompleteTab && availableRoundNums.length > 0 && (
-            <div className="border-t border-border-light px-5 py-2.5 bg-surface-subtle/40 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-text-secondary font-medium flex-shrink-0">회차별 전체선택:</span>
+            <div className="border-t border-gray-100 px-5 py-2.5 bg-gray-50/40 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400 font-medium flex-shrink-0">회차별 전체선택:</span>
               {availableRoundNums.map(num => {
                 const ids = roundToSelectionIds.get(num) ?? [];
                 const isActive = ids.length > 0 && ids.every(id => selectedIds.has(id));
@@ -608,8 +615,8 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
                   <button key={num} onClick={() => onSelectRoundBulk(ids, !isActive)}
                     className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
                       isActive
-                        ? 'bg-brand border-brand text-text-onBrand'
-                        : 'bg-surface border-border-light text-text-secondary hover:border-brand hover:text-brand'
+                        ? 'bg-[#55A4DA] border-[#55A4DA] text-white'
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-[#55A4DA] hover:text-[#55A4DA]'
                     }`}>
                     {num}회차
                   </button>
@@ -736,9 +743,9 @@ function NewslettersContent() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 상단 토퍼 */}
-      <div className="bg-surface border-b border-border-light px-8 h-[65px] flex items-center flex-shrink-0">
-        <div className="flex items-center gap-2 text-[15px] text-text-secondary font-semibold">
-          <span className="text-text-primary font-bold">뉴스레터 제작</span>
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center flex-shrink-0">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-semibold">
+          <span className="font-bold">뉴스레터 제작</span>
         </div>
       </div>
 
@@ -759,41 +766,41 @@ function NewslettersContent() {
             resetDraft();
             router.push('/admin/newsletters/new');
           }}
-          className="w-full flex items-center gap-3 border-2 border-dashed border-brand/40 hover:border-brand bg-brand-50/50 hover:bg-brand-50 rounded-xl px-6 py-4 mb-5 transition-all group text-left"
+          className="w-full flex items-center gap-3 border-2 border-dashed border-[#55A4DA]/40 hover:border-[#55A4DA] bg-[#55A4DA]/5 hover:bg-[#55A4DA]/10 rounded-xl px-6 py-4 mb-5 transition-all group text-left"
         >
-          <div className="w-10 h-10 rounded-xl bg-brand group-hover:bg-brand-dark flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
-            <svg className="w-5 h-5 text-text-onBrand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 rounded-xl bg-[#55A4DA] group-hover:bg-[#3A8BC4] flex items-center justify-center flex-shrink-0 transition-colors shadow-sm">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </div>
           <div>
-            <p className="text-sm font-bold text-brand-dark group-hover:text-[#1A6BA0] transition-colors">새로 만들기</p>
-            <p className="text-xs text-text-secondary mt-0.5">새 뉴스레터를 제작합니다</p>
+            <p className="text-sm font-bold text-[#2E7DB5] group-hover:text-[#1A6BA0] transition-colors">새로 만들기</p>
+            <p className="text-xs text-gray-400 mt-0.5">새 뉴스레터를 제작합니다</p>
           </div>
         </button>
 
         {/* 탭 */}
-        <div className="flex gap-6 border-b border-border-light mb-4 pl-2">
+        <div className="flex gap-6 border-b border-gray-200 mb-4 pl-2">
           {(['최근', '제작 중', '제작완료'] as TabType[]).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'border-brand text-brand' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
+              className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab ? 'border-[#55A4DA] text-[#55A4DA]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
               {tab}
-              {tab !== '최근' && <span className="ml-1.5 text-xs text-text-secondary">{countByStatus[tab]}</span>}
+              {tab !== '최근' && <span className="ml-1.5 text-xs text-gray-400">{countByStatus[tab]}</span>}
             </button>
           ))}
         </div>
 
         {/* 검색 + 기업 필터 */}
         <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center gap-2 bg-surface-subtle border border-border-light rounded-lg px-3 py-1.5 w-52">
-            <svg className="w-4 h-4 text-text-secondary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 w-52">
+            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input type="text" placeholder="기업명 검색" value={search} onChange={e => setSearch(e.target.value)}
-              className="bg-transparent text-sm text-text-secondary placeholder-placeholder outline-none w-full" />
+              className="bg-transparent text-sm text-gray-600 placeholder-gray-400 outline-none w-full" />
           </div>
           <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}
-            className="border border-border-light rounded-lg px-3 py-1.5 text-sm text-text-secondary bg-surface-subtle outline-none focus:border-brand transition-colors cursor-pointer">
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 bg-gray-50 outline-none focus:border-[#55A4DA] transition-colors cursor-pointer">
             <option value="">전체 기업</option>
             {MOCK_COMPANIES.map(c => <option key={c.companyId} value={c.companyName}>{c.companyName}</option>)}
           </select>
@@ -801,20 +808,20 @@ function NewslettersContent() {
 
         {/* 최근 탭 카운트 헤더 */}
         {activeTab === '최근' && filteredCompanies.length > 0 && (
-          <p className="text-xs text-text-secondary font-medium mb-2 pl-1">
-            최근 수정한 뉴스레터 <span className="text-text-secondary font-semibold">{filteredCompanies.length}건</span>
+          <p className="text-xs text-gray-400 font-medium mb-2 pl-1">
+            최근 수정한 뉴스레터 <span className="text-gray-600 font-semibold">{filteredCompanies.length}건</span>
           </p>
         )}
 
         {/* 드릴다운 목록 */}
         <div className="flex-1 overflow-y-auto pr-1">
           {filteredCompanies.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
-              <svg className="w-12 h-12 mb-3 text-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <svg className="w-12 h-12 mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               <p className="text-sm font-medium">뉴스레터가 없습니다.</p>
-              <p className="text-xs text-icon mt-1">새로 만들기를 눌러 뉴스레터를 제작해보세요.</p>
+              <p className="text-xs text-gray-300 mt-1">새로 만들기를 눌러 뉴스레터를 제작해보세요.</p>
             </div>
           ) : (
             filteredCompanies.map(company => (
@@ -832,14 +839,14 @@ function NewslettersContent() {
 
       {/* 하단 고정 발송 바 */}
       {isCompleteTab && totalSelected > 0 && (
-        <div className="flex-shrink-0 border-t border-border-light px-8 py-3 bg-surface flex items-center justify-between shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          <div className="flex items-center gap-2 text-sm text-text-secondary">
-            <span className="w-2 h-2 rounded-full bg-brand flex-shrink-0" />
-            <span className="font-semibold text-text-primary">{totalSelected}개</span> 선택됨
+        <div className="flex-shrink-0 border-t border-gray-200 px-8 py-3 bg-white flex items-center justify-between shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span className="w-2 h-2 rounded-full bg-[#55A4DA] flex-shrink-0" />
+            <span className="font-semibold text-gray-800">{totalSelected}개</span> 선택됨
           </div>
           <button
             onClick={handleGlobalSend}
-            className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-brand hover:bg-brand-dark text-text-onBrand shadow-sm transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />

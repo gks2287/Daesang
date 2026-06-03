@@ -6,7 +6,22 @@ import { useMemo, useState } from 'react';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type LeadershipType, type DeliveryStatus } from '@/store/participantStore';
 import { useDiagnosisHistoryStore } from '@/store/diagnosisHistoryStore';
+import { DEFAULT_STORYLINE, STEP_COLORS } from '@/lib/storyline';
 
+const leadershipColor: Record<LeadershipType, string> = {
+  '코칭형':    'bg-emerald-100 text-emerald-700',
+  '민주형':    'bg-teal-100 text-teal-700',
+  '서번트형':  'bg-cyan-100 text-cyan-700',
+  '비전형':    'bg-sky-100 text-sky-700',
+  '관계중심형': 'bg-blue-100 text-blue-700',
+  '독재형':    'bg-red-100 text-red-600',
+  '방관형':    'bg-orange-100 text-orange-600',
+  '불통형':    'bg-pink-100 text-pink-600',
+  '성과압박형': 'bg-purple-100 text-purple-600',
+  '감정기복형': 'bg-amber-100 text-amber-600',
+  '완벽주의형': 'bg-violet-100 text-violet-600',
+  '우유부단형': 'bg-rose-100 text-rose-600',
+};
 
 const leadershipDesc: Record<LeadershipType, { summary: string; coaching: string }> = {
   '코칭형':    { summary: '구성원의 잠재력을 이끌어내는 코칭 중심 리더십', coaching: '개인별 성장 목표를 함께 설정하고 정기적인 1:1 코칭 대화를 통해 강점을 극대화하세요.' },
@@ -26,7 +41,7 @@ const leadershipDesc: Record<LeadershipType, { summary: string; coaching: string
 const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: string }> = {
   '열람':     { bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-400' },
   '발송완료': { bg: 'bg-yellow-50',  text: 'text-yellow-600',  dot: 'bg-yellow-400' },
-  '미발송':   { bg: 'bg-surface-subtle',   text: 'text-text-secondary',    dot: 'bg-icon' },
+  '미발송':   { bg: 'bg-gray-100',   text: 'text-gray-400',    dot: 'bg-gray-300' },
   '완료':     { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-400' },
 };
 
@@ -54,8 +69,19 @@ const MOCK_LOGS = [
 const logIcon = {
   open:     { bg: 'bg-blue-50',    icon: 'text-blue-500' },
   interact: { bg: 'bg-purple-50',  icon: 'text-purple-500' },
-  survey:   { bg: 'bg-surface-subtle',   icon: 'text-text-secondary' },
+  survey:   { bg: 'bg-gray-200',   icon: 'text-gray-600' },
 };
+
+// 각 로그가 속한 회차(step) 계산 — 열람 로그의 "Step N" 기준으로 그룹핑
+const LOG_ROUNDS: number[] = (() => {
+  let cur = 0;
+  return MOCK_LOGS.map(log => {
+    const m = log.detail.match(/Step (\d+)/);
+    if (m) cur = Number(m[1]);
+    return cur;
+  });
+})();
+const AVAILABLE_ROUNDS = [...new Set(LOG_ROUNDS)].filter(r => r > 0).sort((a, b) => a - b);
 
 export default function ParticipantDetailPage() {
   const params = useParams();
@@ -72,39 +98,41 @@ export default function ParticipantDetailPage() {
 
   if (!company || !participant) {
     return (
-      <div className="flex items-center justify-center h-full text-text-secondary text-sm">
+      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
         존재하지 않는 직책자입니다.
       </div>
     );
   }
 
   const badge = deliveryBadge[participant.deliveryStatus];
+  const leaderColor = leadershipColor[participant.leadershipType] ?? 'bg-gray-100 text-gray-600';
   const leaderInfo = leadershipDesc[participant.leadershipType];
   const progressPct = Math.round((participant.stepCurrent / participant.stepTotal) * 100);
   const [expandedLog, setExpandedLog] = useState<number | null>(null);
+  const [activeRound, setActiveRound] = useState<number | null>(null);
 
   // 실제 데이터에 맞게 스텝 완료 수 계산
   const completedSteps = MOCK_STEPS.filter(s => s.completed).length;
   const avgInteraction = MOCK_STEPS.filter(s => s.completed).reduce((acc, s) => acc + s.interactionRate, 0) / (completedSteps || 1);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-surface-subtle">
+    <div className="flex flex-col h-full overflow-hidden bg-gray-50">
       {/* 상단 토퍼 */}
-      <div className="bg-surface border-b border-border-light px-8 h-[65px] flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2 text-[15px] text-text-secondary font-semibold">
-          <Link href="/admin/dashboard" className="hover:text-text-primary transition-colors">리더목록</Link>
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 text-[15px] text-gray-400 font-semibold">
+          <Link href="/admin/dashboard" className="hover:text-gray-600 transition-colors">진단대상</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <Link href={`/admin/companies/${companyId}/participants`} className="hover:text-text-primary transition-colors">{company.name}</Link>
+          <Link href={`/admin/companies/${companyId}/participants`} className="hover:text-gray-600 transition-colors">{company.name}</Link>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
-          <span className="text-text-primary font-bold">{participant.name}</span>
+          <span className="text-gray-800 font-bold">{participant.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="text-sm font-medium text-text-onBrand bg-brand hover:bg-brand-dark px-4 py-2 rounded-lg transition-colors">
+          <button className="text-sm font-medium text-white bg-[#55A4DA] hover:bg-[#3A8BC4] px-4 py-2 rounded-lg transition-colors">
             정보 수정
           </button>
         </div>
@@ -114,52 +142,52 @@ export default function ParticipantDetailPage() {
       <div className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
 
         {/* ── 상단: 직책자 프로필 카드 ── */}
-        <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
           <div className="flex items-start gap-5">
             {/* 아바타 */}
-            <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-brand text-2xl font-bold">{participant.name[0]}</span>
+            <div className="w-16 h-16 rounded-2xl bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-[#55A4DA] text-2xl font-bold">{participant.name[0]}</span>
             </div>
 
             {/* 기본 정보 */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-xl font-bold text-text-primary">{participant.name}</h1>
+                <h1 className="text-xl font-bold text-gray-900">{participant.name}</h1>
                 <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${badge.bg} ${badge.text}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
                   {participant.deliveryStatus}
                 </span>
               </div>
-              <p className="text-sm text-text-secondary mt-1">{participant.department} · {participant.position}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{participant.email}</p>
+              <p className="text-sm text-gray-500 mt-1">{participant.department} · {participant.position}</p>
+              <p className="text-sm text-gray-400 mt-0.5">{participant.email}</p>
             </div>
 
             {/* 우측 메타 */}
             <div className="flex-shrink-0 text-right space-y-1">
-              <p className="text-xs text-text-secondary">소속 고객사</p>
-              <p className="text-sm font-semibold text-text-primary">{company.name}</p>
-              <p className="text-xs text-text-secondary mt-2">마지막 열람</p>
-              <p className="text-sm font-semibold text-text-primary">
+              <p className="text-xs text-gray-400">소속 고객사</p>
+              <p className="text-sm font-semibold text-gray-700">{company.name}</p>
+              <p className="text-xs text-gray-400 mt-2">마지막 열람</p>
+              <p className="text-sm font-semibold text-gray-700">
                 {participant.lastOpenedAt ?? '—'}
               </p>
             </div>
           </div>
 
           {/* 구분선 */}
-          <div className="border-t border-border-light my-5" />
+          <div className="border-t border-gray-100 my-5" />
 
           {/* 리더십 진단 결과 + 코칭 방향 */}
           <div className="flex gap-4 mb-5">
-            <div className="flex-1 rounded-xl px-4 py-3 flex items-end gap-4 bg-surface-subtle">
+            <div className={`flex-1 rounded-xl px-4 py-3 flex items-end gap-4 ${leaderColor.split(' ')[0]}`}>
               <div className="flex-shrink-0">
-                <p className="text-xs font-semibold text-text-secondary mb-1">리더십 유형</p>
-                <p className="text-xl font-bold text-text-primary">{participant.leadershipType}</p>
+                <p className="text-xs font-semibold text-gray-500 mb-1">리더십 유형</p>
+                <p className={`text-xl font-bold ${leaderColor.split(' ')[1]}`}>{participant.leadershipType}</p>
               </div>
-              <p className="text-xs text-text-secondary leading-relaxed">{leaderInfo?.summary ?? ''}</p>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo?.summary ?? ''}</p>
             </div>
-            <div className="flex-1 bg-surface-subtle rounded-xl px-4 py-3">
-              <p className="text-xs font-semibold text-text-secondary mb-1">코칭 방향</p>
-              <p className="text-xs text-text-secondary leading-relaxed">{leaderInfo?.coaching ?? ''}</p>
+            <div className="flex-1 bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-xs font-semibold text-gray-500 mb-1">코칭 방향</p>
+              <p className="text-xs text-gray-600 leading-relaxed">{leaderInfo?.coaching ?? ''}</p>
             </div>
           </div>
 
@@ -170,7 +198,7 @@ export default function ParticipantDetailPage() {
               value={`${participant.assessmentRound}회차`}
               suffix={`/ ${participant.stepTotal}회차`}
               sub="최근 완료 기준"
-              color="text-text-primary"
+              color="text-gray-800"
             />
             <StatCard
               label="스토리라인"
@@ -183,7 +211,7 @@ export default function ParticipantDetailPage() {
               label="평균 참여도"
               value="68%"
               sub="발송 기준"
-              color="text-text-primary"
+              color="text-gray-800"
               percent={68}
             />
             <StatCard
@@ -200,69 +228,76 @@ export default function ParticipantDetailPage() {
         <div className="grid grid-cols-1 gap-5">
 
           {/* 뉴스레터 스토리라인 */}
-          <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-5">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-text-primary">뉴스레터 스토리라인</h2>
+              <h2 className="text-sm font-bold text-gray-800">뉴스레터 스토리라인</h2>
               <div className="flex items-center gap-2">
-                <div className="w-24 bg-surface-subtle rounded-full h-1.5">
-                  <div
-                    className="bg-brand h-1.5 rounded-full transition-all"
-                    style={{ width: `${progressPct}%` }}
-                  />
+                <div className="w-24 bg-gray-100 rounded-full h-1.5">
+                  <div className="bg-[#55A4DA] h-1.5 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
                 </div>
-                <span className="text-xs font-semibold text-brand">{progressPct}%</span>
+                <span className="text-xs font-semibold text-[#55A4DA]">{progressPct}%</span>
               </div>
             </div>
 
-            <div className="space-y-2">
-              {MOCK_STEPS.map((s) => {
-                const isDone = s.completed;
-                const isSent = !!s.sentAt && !isDone;
-                const isPending = !s.sentAt;
+            <div className="flex flex-col lg:flex-row items-stretch gap-0">
+              {DEFAULT_STORYLINE.map((s, i) => {
+                const color = STEP_COLORS[i % STEP_COLORS.length];
+                const mock = MOCK_STEPS[i];
+                const isDone = mock?.completed ?? false;
+                const isSent = !!mock?.sentAt && !isDone;
 
                 return (
-                  <div
-                    key={s.step}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-                      isDone ? 'bg-emerald-100' : isSent ? 'bg-amber-100' : 'bg-surface-subtle'
-                    }`}
-                  >
-                    {/* 스텝 번호 뱃지 */}
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      isDone ? 'bg-emerald-500 text-white' :
-                      isSent ? 'bg-yellow-400 text-white' :
-                      'bg-surface-subtle text-text-secondary'
-                    }`}>
-                      {isDone ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : s.step}
+                  <div key={s.step} className="flex flex-col lg:flex-row items-stretch flex-1 min-w-0">
+                    <div className={`flex-1 rounded-2xl border-2 ${color.border} ${color.cardBg} p-4 flex flex-col gap-2.5 relative`}>
+                      {/* 상태 뱃지 */}
+                      <div className="absolute top-3 right-3">
+                        {isDone ? (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            완료 · {mock.interactionRate}%
+                          </span>
+                        ) : isSent ? (
+                          <span className="text-[10px] font-bold text-yellow-600 bg-yellow-100 px-2 py-0.5 rounded-full">발송완료</span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">미발송</span>
+                        )}
+                      </div>
+
+                      {/* 스텝 번호 + 타이틀 */}
+                      <div className="flex items-center gap-2.5 pr-16">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isDone ? 'bg-emerald-500' : color.badge}`}>
+                          {isDone ? (
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <span className="text-white text-xs font-bold">{s.step}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold leading-tight ${color.titleColor}`}>{s.title}</p>
+                          <p className={`text-[11px] font-semibold ${color.subtitleColor}`}>{s.subtitle}</p>
+                        </div>
+                      </div>
+
+                      {/* 설명 */}
+                      <p className="text-xs text-gray-500 leading-relaxed flex-1">{s.description}</p>
+
+                      {/* 발송일 */}
+                      {mock?.sentAt && (
+                        <p className="text-[10px] text-gray-300">{mock.sentAt} 발송</p>
+                      )}
                     </div>
 
-                    {/* 제목 */}
-                    <p className={`text-xs font-medium flex-1 min-w-0 truncate ${
-                      isDone ? 'text-emerald-700' : isSent ? 'text-yellow-700' : 'text-text-secondary'
-                    }`}>
-                      {s.title}
-                    </p>
-
-                    {/* 인터랙션 */}
-                    {isDone && (
-                      <span className="text-xs font-semibold text-emerald-600 flex-shrink-0">
-                        인터랙션 {s.interactionRate}%
-                      </span>
-                    )}
-                    {isSent && (
-                      <span className="text-xs font-semibold text-yellow-600 flex-shrink-0">발송완료</span>
-                    )}
-                    {isPending && (
-                      <span className="text-xs text-icon flex-shrink-0">미발송</span>
-                    )}
-
-                    {/* 발송일 */}
-                    {s.sentAt && (
-                      <span className="text-xs text-icon flex-shrink-0 w-20 text-right">{s.sentAt}</span>
+                    {/* 화살표 */}
+                    {i < DEFAULT_STORYLINE.length - 1 && (
+                      <div className="flex items-center justify-center lg:px-2 py-2 lg:py-0 flex-shrink-0">
+                        <svg className="w-4 h-4 text-gray-300 lg:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                        <svg className="w-4 h-4 text-gray-300 hidden lg:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     )}
                   </div>
                 );
@@ -272,23 +307,66 @@ export default function ParticipantDetailPage() {
         </div>
 
         {/* ── 하단: 활동 로그 ── */}
-        <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-text-primary">활동 로그</h2>
-            <span className="text-xs text-text-secondary">{MOCK_LOGS.length}건</span>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-gray-800">활동 로그</h2>
+            <span className="text-xs text-gray-400">
+              {activeRound === null ? MOCK_LOGS.length : MOCK_LOGS.filter((_, i) => LOG_ROUNDS[i] === activeRound).length}건
+            </span>
+          </div>
+
+          {/* 회차 탭 */}
+          <div className="flex gap-1 mb-4 flex-wrap">
+            <button
+              onClick={() => { setActiveRound(null); setExpandedLog(null); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                activeRound === null
+                  ? 'bg-[#55A4DA] text-white'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              전체
+            </button>
+            {AVAILABLE_ROUNDS.map(round => {
+              const step = MOCK_STEPS.find(s => s.step === round);
+              const rate = step?.interactionRate ?? 0;
+              const isActive = activeRound === round;
+              return (
+                <button
+                  key={round}
+                  onClick={() => { setActiveRound(round); setExpandedLog(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-[#55A4DA] text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {round}회차
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : rate > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-400'
+                  }`}>
+                    {rate}%
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="space-y-2">
-            {MOCK_LOGS.map((log, i) => {
+            {(activeRound === null ? MOCK_LOGS : MOCK_LOGS.filter((_, i) => LOG_ROUNDS[i] === activeRound))
+            .map((log, i) => {
+              const origIdx = activeRound === null ? i : MOCK_LOGS.indexOf(log);
               const style = logIcon[log.type as keyof typeof logIcon];
               const isInteract = log.type === 'interact' && log.response;
               const isSurvey = log.type === 'survey' && log.response;
               const isExpandable = isInteract || isSurvey;
-              const isExpanded = expandedLog === i;
+              const isExpanded = expandedLog === origIdx;
               return (
-                <div key={i}
-                  className={`px-3 py-2.5 rounded-xl transition-colors ${isInteract ? 'cursor-pointer hover:bg-purple-50/60' : isSurvey ? 'cursor-pointer hover:bg-surface-subtle/60' : 'hover:bg-surface-hover'}`}
-                  onClick={() => isExpandable && setExpandedLog(isExpanded ? null : i)}
+                <div key={origIdx}
+                  className={`px-3 py-2.5 rounded-xl transition-colors ${isInteract ? 'cursor-pointer hover:bg-purple-50/60' : isSurvey ? 'cursor-pointer hover:bg-gray-100/60' : 'hover:bg-gray-50'}`}
+                  onClick={() => isExpandable && setExpandedLog(isExpanded ? null : origIdx)}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${style.bg}`}>
@@ -307,13 +385,13 @@ export default function ParticipantDetailPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-text-primary">{log.action}</p>
-                      <p className="text-xs text-text-secondary mt-0.5 truncate">{log.detail}</p>
+                      <p className="text-xs font-semibold text-gray-700">{log.action}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{log.detail}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-icon whitespace-nowrap">{log.date}</span>
+                      <span className="text-xs text-gray-300 whitespace-nowrap">{log.date}</span>
                       {isExpandable && (
-                        <svg className={`w-3.5 h-3.5 text-icon transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-3.5 h-3.5 text-gray-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       )}
@@ -321,30 +399,30 @@ export default function ParticipantDetailPage() {
                   </div>
                   {isInteract && isExpanded && (
                     <div className="mt-2.5 ml-10 bg-purple-50 rounded-lg px-3 py-2.5">
-                      <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{log.response as string}</p>
+                      <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line">{log.response as string}</p>
                     </div>
                   )}
                   {isSurvey && isExpanded && (() => {
                     const r = log.response as { checks: string[]; unchecked: string[]; text: string };
                     return (
-                      <div className="mt-2.5 ml-10 bg-surface-subtle rounded-lg px-3 py-3 space-y-3">
+                      <div className="mt-2.5 ml-10 bg-gray-100 rounded-lg px-3 py-3 space-y-3">
                         <div className="space-y-1.5">
                           {r.checks.map((item, j) => (
                             <div key={j} className="flex items-center gap-2">
                               <span className="text-emerald-500 text-xs font-bold">✓</span>
-                              <p className="text-xs text-text-secondary">{item}</p>
+                              <p className="text-xs text-gray-600">{item}</p>
                             </div>
                           ))}
                           {r.unchecked.map((item, j) => (
                             <div key={j} className="flex items-center gap-2">
-                              <span className="text-icon text-xs font-bold">✗</span>
-                              <p className="text-xs text-text-secondary">{item}</p>
+                              <span className="text-gray-300 text-xs font-bold">✗</span>
+                              <p className="text-xs text-gray-400">{item}</p>
                             </div>
                           ))}
                         </div>
-                        <div className="border-t border-border-light pt-2.5">
-                          <p className="text-[10px] font-semibold text-text-secondary mb-1">주관식 응답</p>
-                          <p className="text-xs text-text-secondary leading-relaxed">{r.text}</p>
+                        <div className="border-t border-gray-200 pt-2.5">
+                          <p className="text-[10px] font-semibold text-gray-400 mb-1">주관식 응답</p>
+                          <p className="text-xs text-gray-600 leading-relaxed">{r.text}</p>
                         </div>
                       </div>
                     );
@@ -385,15 +463,15 @@ function SemiCircle({ percent, color }: { percent: number; color: string }) {
 
 function StatCard({ label, value, sub, color, suffix, percent }: { label: string; value: string; sub: string; color: string; suffix?: string; percent?: number }) {
   return (
-    <div className="bg-surface-subtle rounded-xl px-4 py-3.5">
-      <p className="text-xs text-text-secondary mb-1">{label}</p>
+    <div className="bg-gray-50 rounded-xl px-4 py-3.5">
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
       <div className="flex items-end justify-between">
         <div>
           <p className={`text-xl font-bold ${color}`}>
             {value}
-            {suffix && <span className="text-sm font-medium text-text-secondary ml-1">{suffix}</span>}
+            {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
           </p>
-          <p className="text-xs text-text-secondary mt-0.5">{sub}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
         </div>
         {percent !== undefined && (
           <SemiCircle percent={percent} color={color} />

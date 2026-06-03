@@ -30,7 +30,7 @@ const SOURCE_LABELS: Record<ContentSource, string> = { original: 'J& 오리지�
 const CATEGORIES: ContentCategory[] = ['아티클', '인터뷰', '책 추천', '성공 사례', '카드뉴스', '웹툰', '영상'];
 
 const CATEGORY_COLOR: Record<ContentCategory, string> = {
-  아티클: 'bg-surface-subtle text-text-secondary',
+  아티클: 'bg-gray-100 text-gray-600',
   인터뷰: 'bg-blue-50 text-blue-600',
   '책 추천': 'bg-amber-50 text-amber-700',
   '성공 사례': 'bg-emerald-50 text-emerald-700',
@@ -50,7 +50,6 @@ type FormData = {
   tags: string[];
   thumbnail: string;
   body: string;
-  summary: string;
 };
 
 const EMPTY_FORM: FormData = {
@@ -63,7 +62,6 @@ const EMPTY_FORM: FormData = {
   tags: [],
   thumbnail: '',
   body: '',
-  summary: '',
 };
 
 function itemToForm(item: ContentPoolItem): FormData {
@@ -77,7 +75,6 @@ function itemToForm(item: ContentPoolItem): FormData {
     tags: [...item.tags],
     thumbnail: item.thumbnail,
     body: item.body,
-    summary: item.summary ?? '',
   };
 }
 
@@ -156,7 +153,6 @@ function ContentFormModal({
         tags: json.tags?.length ? json.tags : prev.tags,
         thumbnail: json.thumbnail || prev.thumbnail,
         body: json.body || prev.body,
-        summary: json.summary || prev.summary,
       }));
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
@@ -203,7 +199,6 @@ function ContentFormModal({
         tags: data.tags?.length ? data.tags : prev.tags,
         thumbnail: data.thumbnailUrl || prev.thumbnail,
         body: data.body || prev.body,
-        summary: data.summary || prev.summary,
       }));
       setUrlParsed(true);
     } catch (e) {
@@ -220,6 +215,7 @@ function ContentFormModal({
     form.duration !== '' &&
     Number(form.duration) > 0 &&
     form.author.trim().length > 0 &&
+    form.body.trim().length > 0 &&
     !urlParsing;
 
   function patch<K extends keyof FormData>(key: K, value: FormData[K]) {
@@ -253,7 +249,6 @@ function ContentFormModal({
         tags: form.tags,
         thumbnail: form.thumbnail.trim() || `https://picsum.photos/seed/${Date.now()}/400/225`,
         body: form.body.trim(),
-        summary: form.summary.trim(),
       });
     } finally {
       setSaving(false);
@@ -261,8 +256,8 @@ function ContentFormModal({
   }
 
   const inputCls =
-    'w-full px-3 py-2 border border-border-light rounded-xl text-sm text-text-primary placeholder-placeholder focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition bg-surface';
-  const labelCls = 'block text-xs font-semibold text-text-secondary mb-1.5';
+    'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white';
+  const labelCls = 'block text-xs font-semibold text-gray-500 mb-1.5';
   const requiredMark = <span className="text-red-400">*</span>;
 
   return (
@@ -277,14 +272,14 @@ function ContentFormModal({
         }`}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-light flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-text-primary">
+            <h2 className="text-base font-bold text-gray-800">
               {mode === 'create' ? '콘텐츠 등록' : '콘텐츠 수정'}
             </h2>
-            <p className="text-xs text-text-secondary mt-0.5">* 표시 항목은 필수 입력입니다.</p>
+            <p className="text-xs text-gray-400 mt-0.5">* 표시 항목은 필수 입력입니다.</p>
           </div>
-          <button onClick={handleClose} className="text-text-secondary hover:text-text-primary transition-colors">
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -303,13 +298,13 @@ function ContentFormModal({
             <div className="space-y-2">
               <label className={labelCls}>
                 파일 업로드{' '}
-                <span className="text-icon font-normal">(선택 · docx / pdf / txt)</span>
+                <span className="text-gray-300 font-normal">(선택 · docx / pdf / txt)</span>
               </label>
               <label
                 className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl py-5 px-4 cursor-pointer transition-colors group ${
                   isDragOver
-                    ? 'border-brand bg-brand-50'
-                    : 'border-border-light hover:border-brand/50 hover:bg-brand-50/50'
+                    ? 'border-[#55A4DA] bg-[#55A4DA]/10'
+                    : 'border-gray-200 hover:border-[#55A4DA]/50 hover:bg-[#55A4DA]/5'
                 }`}
                 onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                 onDragLeave={() => setIsDragOver(false)}
@@ -331,40 +326,40 @@ function ContentFormModal({
                 />
                 {parsing ? (
                   <div className="flex flex-col items-center gap-2">
-                    <svg className="w-6 h-6 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="w-6 h-6 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                     </svg>
-                    <span className="text-xs font-semibold text-brand">AI 분석 중...</span>
+                    <span className="text-xs font-semibold text-[#55A4DA]">AI 분석 중...</span>
                     <button
                       type="button"
                       onClick={e => { e.preventDefault(); handleCancelParse(); }}
-                      className="text-[11px] text-text-secondary hover:text-red-400 underline transition-colors"
+                      className="text-[11px] text-gray-400 hover:text-red-400 underline transition-colors"
                     >
                       취소
                     </button>
                   </div>
                 ) : selectedFile ? (
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <svg className="w-5 h-5 text-brand flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <svg className="w-5 h-5 text-[#55A4DA] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <span className="font-medium truncate max-w-[220px]">{selectedFile.name}</span>
                     <button
                       type="button"
                       onClick={e => { e.preventDefault(); setSelectedFile(null); setParseError(null); }}
-                      className="ml-1 text-text-secondary hover:text-red-400 transition-colors text-base leading-none flex-shrink-0"
+                      className="ml-1 text-gray-400 hover:text-red-400 transition-colors text-base leading-none flex-shrink-0"
                     >
                       ×
                     </button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-1.5 text-center">
-                    <svg className="w-8 h-8 text-icon group-hover:text-brand/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-8 h-8 text-gray-300 group-hover:text-[#55A4DA]/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <span className="text-xs text-text-secondary">드래그하거나 클릭하여 파일 선택</span>
-                    <span className="text-[11px] text-icon">docx · pdf · txt</span>
+                    <span className="text-xs text-gray-400">드래그하거나 클릭하여 파일 선택</span>
+                    <span className="text-[11px] text-gray-300">docx · pdf · txt</span>
                   </div>
                 )}
               </label>
@@ -391,10 +386,10 @@ function ContentFormModal({
           {/* 큐레이션: URL 입력 */}
           {form.type === 'curation' && (
             <div className="space-y-2">
-              <label className={labelCls}>원문 URL <span className="text-icon font-normal">(선택 · Enter 또는 붙여넣기 시 AI 자동파싱)</span></label>
+              <label className={labelCls}>원문 URL <span className="text-gray-300 font-normal">(선택 · Enter 또는 붙여넣기 시 AI 자동파싱)</span></label>
               <div className="relative">
                 <input
-                  className={`${inputCls} pr-10 ${urlParsing ? 'bg-surface-subtle text-text-secondary' : ''}`}
+                  className={`${inputCls} pr-10 ${urlParsing ? 'bg-gray-50 text-gray-400' : ''}`}
                   value={sourceUrl}
                   disabled={urlParsing}
                   onChange={e => {
@@ -418,7 +413,7 @@ function ContentFormModal({
                 />
                 {urlParsing && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <svg className="w-4 h-4 text-brand animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                     </svg>
@@ -426,7 +421,7 @@ function ContentFormModal({
                 )}
               </div>
               {urlParsing && (
-                <div className="flex items-center gap-2 text-xs text-brand bg-brand-50/50 border border-brand/20 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-xs text-[#55A4DA] bg-[#55A4DA]/5 border border-[#55A4DA]/20 rounded-lg px-3 py-2">
                   <svg className="w-4 h-4 flex-shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
@@ -462,7 +457,7 @@ function ContentFormModal({
           )}
 
           {(form.type === 'original' || form.type === 'curation') && (
-            <div className="border-t border-border-light" />
+            <div className="border-t border-gray-100" />
           )}
 
           {/* 제목 */}
@@ -487,13 +482,13 @@ function ContentFormModal({
                   onClick={() => patch('type', src)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
                     form.type === src
-                      ? 'border-brand bg-brand-50 text-brand'
-                      : 'border-border-light text-text-secondary hover:border-border hover:bg-surface-hover'
+                      ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#55A4DA]'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div
                     className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                      form.type === src ? 'border-brand bg-brand' : 'border-border'
+                      form.type === src ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'
                     }`}
                   >
                     {form.type === src && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
@@ -530,22 +525,6 @@ function ContentFormModal({
             </div>
           </div>
 
-          {/* 요약 (AI 자동 생성) */}
-          <div>
-            <label className={labelCls}>
-              요약 <span className="text-icon font-normal">(AI가 첨부 파일/URL을 분석하여 자동 생성)</span>
-            </label>
-            {form.summary ? (
-              <div className="w-full bg-surface-subtle border border-border-light rounded-xl p-4 text-sm text-text-primary leading-relaxed whitespace-pre-line">
-                {form.summary}
-              </div>
-            ) : (
-              <div className="w-full bg-surface-subtle border border-border-light rounded-xl p-4 flex items-center justify-center text-xs text-icon min-h-[80px]">
-                파일 업로드 또는 URL을 입력하면 AI가 요약을 생성합니다.
-              </div>
-            )}
-          </div>
-
           {/* 작성자/출처 */}
           <div>
             <label className={labelCls}>작성자/출처 {requiredMark}</label>
@@ -560,19 +539,19 @@ function ContentFormModal({
           {/* 태그 */}
           <div>
             <label className={labelCls}>
-              태그 <span className="text-icon font-normal">(선택 · Enter로 추가)</span>
+              태그 <span className="text-gray-300 font-normal">(선택 · Enter로 추가)</span>
             </label>
-            <div className="w-full border border-border-light rounded-xl p-2.5 focus-within:border-brand focus-within:ring-1 focus-within:ring-brand/30 transition bg-surface min-h-[44px] flex flex-wrap gap-1.5 items-center">
+            <div className="w-full border border-gray-200 rounded-xl p-2.5 focus-within:border-[#55A4DA] focus-within:ring-1 focus-within:ring-[#55A4DA]/30 transition bg-white min-h-[44px] flex flex-wrap gap-1.5 items-center">
               {form.tags.map(tag => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-50 text-brand text-xs font-semibold rounded-lg"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#55A4DA]/10 text-[#55A4DA] text-xs font-semibold rounded-lg"
                 >
                   #{tag}
                   <button
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }))}
-                    className="text-brand/60 hover:text-brand leading-none ml-0.5"
+                    className="text-[#55A4DA]/60 hover:text-[#55A4DA] leading-none ml-0.5"
                   >
                     ×
                   </button>
@@ -583,7 +562,7 @@ function ContentFormModal({
                 onChange={e => patch('tagInput', e.target.value)}
                 onKeyDown={handleTagKeyDown}
                 placeholder={form.tags.length === 0 ? '태그 입력 후 Enter' : ''}
-                className="flex-1 min-w-24 text-sm text-text-primary placeholder-placeholder outline-none bg-transparent"
+                className="flex-1 min-w-24 text-sm text-gray-700 placeholder-gray-300 outline-none bg-transparent"
               />
             </div>
           </div>
@@ -591,7 +570,7 @@ function ContentFormModal({
           {/* 썸네일 URL */}
           <div>
             <label className={labelCls}>
-              썸네일 URL <span className="text-icon font-normal">(선택 · 비워두면 자동 생성)</span>
+              썸네일 URL <span className="text-gray-300 font-normal">(선택 · 비워두면 자동 생성)</span>
             </label>
             <input
               className={inputCls}
@@ -601,18 +580,29 @@ function ContentFormModal({
             />
           </div>
 
+          {/* 본문 */}
+          <div>
+            <label className={labelCls}>본문 {requiredMark}</label>
+            <textarea
+              rows={7}
+              className={`${inputCls} resize-none`}
+              value={form.body}
+              onChange={e => patch('body', e.target.value)}
+              placeholder="본문 내용을 입력하세요 (마크다운 형식 사용 가능)"
+            />
+          </div>
         </div>
         </div>
 
         {/* 푸터 */}
-        <div className="px-6 py-4 border-t border-border-light flex items-center justify-between flex-shrink-0">
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0">
           <p className={`text-xs transition-colors ${isValid ? 'invisible' : 'text-amber-500'}`}>
             필수 항목을 모두 입력해주세요.
           </p>
           <div className="flex gap-2">
             <button
               onClick={handleClose}
-              className="px-4 py-2 text-sm font-medium text-text-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               취소
             </button>
@@ -621,8 +611,8 @@ function ContentFormModal({
               disabled={!isValid || saving}
               className={`px-5 py-2 text-sm font-bold rounded-lg transition-colors ${
                 isValid && !saving
-                  ? 'bg-brand hover:bg-brand-dark text-text-onBrand shadow-sm'
-                  : 'bg-surface-subtle text-text-secondary cursor-not-allowed'
+                  ? 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
               {saving ? '저장 중...' : mode === 'create' ? '등록' : '저장'}
@@ -654,8 +644,8 @@ function PreviewPanel({ item, onClose }: { item: ContentPoolItem; onClose: () =>
       }`}
     >
       {/* 헤더 */}
-      <div className="flex items-center justify-end px-4 py-3 bg-surface border-b border-border-light flex-shrink-0">
-        <button onClick={handleClose} className="text-text-secondary hover:text-text-primary transition-colors">
+      <div className="flex items-center justify-end px-4 py-3 bg-white border-b border-gray-200 flex-shrink-0">
+        <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -688,12 +678,12 @@ function PreviewPanel({ item, onClose }: { item: ContentPoolItem; onClose: () =>
           </div>
 
           {/* 제목 */}
-          <h1 className="text-xl font-bold text-text-primary leading-snug mb-3">
+          <h1 className="text-xl font-bold text-gray-900 leading-snug mb-3">
             {item.title}
           </h1>
 
           {/* 메타 */}
-          <p className="text-[11px] text-text-secondary mb-3 leading-relaxed" style={{ fontFamily: 'system-ui, sans-serif' }}>
+          <p className="text-[11px] text-gray-400 mb-3 leading-relaxed" style={{ fontFamily: 'system-ui, sans-serif' }}>
             {item.author}
             <span className="mx-1.5">·</span>
             {item.createdAt}
@@ -705,19 +695,19 @@ function PreviewPanel({ item, onClose }: { item: ContentPoolItem; onClose: () =>
           {item.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4" style={{ fontFamily: 'system-ui, sans-serif' }}>
               {item.tags.map(tag => (
-                <span key={tag} className="text-[11px] text-brand font-medium">
+                <span key={tag} className="text-[11px] text-[#55A4DA] font-medium">
                   #{tag}
                 </span>
               ))}
             </div>
           )}
 
-          <div className="border-t border-border-light mb-5" />
+          <div className="border-t border-gray-200 mb-5" />
 
           {/* 본문 */}
-          <div className="text-sm text-text-primary leading-[1.9] whitespace-pre-line">
+          <div className="text-sm text-gray-700 leading-[1.9] whitespace-pre-line">
             {item.body || (
-              <span className="text-text-secondary italic" style={{ fontFamily: 'system-ui, sans-serif' }}>
+              <span className="text-gray-400 italic" style={{ fontFamily: 'system-ui, sans-serif' }}>
                 본문 내용이 없습니다.
               </span>
             )}
@@ -759,9 +749,9 @@ function DeleteConfirmModal({
             </svg>
           </div>
           <div>
-            <h3 className="text-sm font-bold text-text-primary">이 콘텐츠를 삭제하시겠습니까?</h3>
-            <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
-              <span className="font-semibold text-text-primary">"{item.title}"</span>
+            <h3 className="text-sm font-bold text-gray-800">이 콘텐츠를 삭제하시겠습니까?</h3>
+            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              <span className="font-semibold text-gray-700">"{item.title}"</span>
               <br />
               삭제 후 복구할 수 없습니다.
             </p>
@@ -770,7 +760,7 @@ function DeleteConfirmModal({
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-text-secondary border border-border-light rounded-lg hover:bg-surface-hover transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
             취소
           </button>
@@ -804,11 +794,10 @@ function ContentCard({
 
   return (
     <div
-      onClick={() => onPreview(item)}
-      className="bg-surface rounded-2xl border border-border-light shadow-sm hover:shadow-lg hover:border-brand/40 transition-all overflow-hidden group cursor-pointer"
+      className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-[#55A4DA]/40 transition-all overflow-hidden group"
     >
       {/* 썸네일 */}
-      <div className="relative aspect-video bg-surface-subtle overflow-hidden">
+      <div className="relative aspect-video bg-gray-100 overflow-hidden">
         <img
           src={item.thumbnail}
           alt={item.title}
@@ -828,7 +817,7 @@ function ContentCard({
           <button
             onClick={e => { e.stopPropagation(); onEdit(item); }}
             title="수정"
-            className="w-8 h-8 bg-surface rounded-lg flex items-center justify-center shadow text-text-secondary hover:bg-brand hover:text-text-onBrand transition-colors"
+            className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow text-gray-600 hover:bg-[#55A4DA] hover:text-white transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -837,7 +826,7 @@ function ContentCard({
           <button
             onClick={e => { e.stopPropagation(); onDelete(item); }}
             title="삭제"
-            className="w-8 h-8 bg-surface rounded-lg flex items-center justify-center shadow text-text-secondary hover:bg-red-500 hover:text-white transition-colors"
+            className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow text-gray-600 hover:bg-red-500 hover:text-white transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -848,42 +837,34 @@ function ContentCard({
 
       {/* 카드 바디 */}
       <div className="p-4 space-y-3">
-        <div className="flex items-start gap-1.5">
-          <h3 className="text-sm font-bold text-text-primary leading-snug line-clamp-2 group-hover:text-brand-dark transition-colors flex-1 min-w-0">
-            {item.title}
-          </h3>
-          {item.summary && (
-            <div className="relative flex-shrink-0 group/info">
-              <button
-                onClick={e => e.stopPropagation()}
-                className="w-5 h-5 rounded-full border border-border-light bg-surface-subtle text-icon text-[11px] font-bold flex items-center justify-center hover:border-brand hover:text-brand transition-colors"
-              >
-                i
-              </button>
-              <div className="absolute right-0 top-7 z-50 w-56 opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-150 pointer-events-none group-hover/info:pointer-events-auto">
-                <div className="bg-surface-inverted text-white text-xs leading-relaxed rounded-lg px-3 py-2.5 shadow-lg">
-                  {item.summary}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-text-secondary truncate">{item.author}</p>
+        <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 group-hover:text-[#2E7DB5] transition-colors">
+          {item.title}
+        </h3>
+        <p className="text-xs text-gray-400 truncate">{item.author}</p>
         <div className="flex flex-wrap gap-1">
           {visibleTags.map(tag => (
             <span
               key={tag}
-              className="text-[10px] bg-surface-subtle text-text-secondary border border-border-light px-1.5 py-0.5 rounded"
+              className="text-[10px] bg-gray-50 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded"
             >
               #{tag}
             </span>
           ))}
           {extraTags > 0 && (
-            <span className="text-[10px] text-text-secondary px-1.5 py-0.5">+{extraTags}</span>
+            <span className="text-[10px] text-gray-400 px-1.5 py-0.5">+{extraTags}</span>
           )}
         </div>
-        <div className="pt-1 border-t border-border-light">
-          <span className="text-[11px] text-text-secondary">{item.createdAt}</span>
+        <div className="pt-1 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-[11px] text-gray-400">{item.createdAt}</span>
+          <button
+            onClick={() => onPreview(item)}
+            title="요약본 보기"
+            className="w-8 h-8 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center text-gray-500 hover:bg-[#55A4DA] hover:text-white hover:border-[#55A4DA] transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -973,14 +954,14 @@ export default function ContentPage() {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* ── 상단 토퍼 ── */}
-      <div className="bg-surface border-b border-border-light px-8 py-3.5 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2 text-[15px] text-text-secondary font-semibold">
-          <span className="text-text-primary font-bold">콘텐츠 풀</span>
+      <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 text-[15px] text-gray-800 font-semibold">
+          <span className="font-bold">콘텐츠 풀</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => openCreate(activeTab)}
-            className="flex items-center gap-2 bg-brand text-text-onBrand text-sm font-semibold px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-[#55A4DA] text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#3A8BC4] transition-colors shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -991,8 +972,8 @@ export default function ContentPage() {
       </div>
 
       {/* ── 탭 + 필터 ── */}
-      <div className="bg-surface border-b border-border-light px-8 flex-shrink-0">
-        <div className="flex gap-6 border-b border-border-light">
+      <div className="bg-white border-b border-gray-200 px-8 flex-shrink-0">
+        <div className="flex gap-6 border-b border-gray-100">
           {SOURCES.map(tab => (
             <button
               key={tab}
@@ -1003,16 +984,16 @@ export default function ContentPage() {
               }}
               className={`pb-3 pt-3 text-sm font-semibold transition-colors border-b-2 -mb-px flex items-center gap-1.5 ${
                 activeTab === tab
-                  ? 'border-brand text-brand'
-                  : 'border-transparent text-text-secondary hover:text-text-primary'
+                  ? 'border-[#55A4DA] text-[#55A4DA]'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
               }`}
             >
               {SOURCE_LABELS[tab]}
               <span
                 className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                   activeTab === tab
-                    ? 'bg-brand-50 text-brand'
-                    : 'bg-surface-subtle text-text-secondary'
+                    ? 'bg-[#55A4DA]/10 text-[#55A4DA]'
+                    : 'bg-gray-100 text-gray-400'
                 }`}
               >
                 {countByType[tab]}
@@ -1023,7 +1004,7 @@ export default function ContentPage() {
 
         <div className="py-3 space-y-2">
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -1031,7 +1012,7 @@ export default function ContentPage() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="제목, 태그 검색..."
-              className="w-full pl-9 pr-4 py-2 border border-border-light rounded-xl text-xs text-text-primary placeholder-placeholder focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition bg-surface"
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition bg-white"
             />
           </div>
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
@@ -1041,8 +1022,8 @@ export default function ContentPage() {
                 onClick={() => setCategoryFilter(categoryFilter === cat ? '' : cat)}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                   categoryFilter === cat
-                    ? 'bg-brand text-text-onBrand'
-                    : 'bg-surface-subtle text-text-secondary hover:bg-surface-hover'
+                    ? 'bg-[#55A4DA] text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 {cat}
@@ -1055,17 +1036,17 @@ export default function ContentPage() {
       {/* ── 콘텐츠 그리드 ── */}
       <div className={`flex-1 overflow-y-auto bg-[#F8FAFC] px-8 py-6 transition-all duration-300 ease-out ${previewItem ? 'pr-[calc(50%+2rem)]' : ''}`}>
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center text-text-secondary">
-            <svg className="w-12 h-12 mb-3 text-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center h-64 text-center text-gray-400">
+            <svg className="w-12 h-12 mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <p className="text-sm font-medium">콘텐츠가 없습니다.</p>
-            <p className="text-xs text-icon mt-1">필터 조건을 변경하거나 콘텐츠를 등록하세요.</p>
+            <p className="text-xs text-gray-300 mt-1">필터 조건을 변경하거나 콘텐츠를 등록하세요.</p>
           </div>
         ) : (
           <>
-            <p className="text-xs text-text-secondary mb-4">
-              <span className="font-semibold text-text-secondary">{filtered.length}</span>개의 콘텐츠
+            <p className="text-xs text-gray-400 mb-4">
+              <span className="font-semibold text-gray-600">{filtered.length}</span>개의 콘텐츠
             </p>
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(item => (

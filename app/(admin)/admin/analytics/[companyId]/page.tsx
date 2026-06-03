@@ -16,20 +16,20 @@ const LEADERSHIP_COLORS: Record<LeadershipType, string> = {
 };
 
 const statusDot: Record<string, string> = {
-  '진행 중':   'bg-brand',
+  '진행 중':   'bg-[#55A4DA]',
   '진행 완료': 'bg-emerald-400',
   '진행 전':   'bg-gray-300',
 };
 const statusText: Record<string, string> = {
-  '진행 중':   'text-brand-dark',
+  '진행 중':   'text-[#2E7DB5]',
   '진행 완료': 'text-emerald-600',
-  '진행 전':   'text-text-secondary',
+  '진행 전':   'text-gray-400',
 };
 const deliveryBadge: Record<string, string> = {
   '완료':    'bg-emerald-50 text-emerald-600',
-  '열람':    'bg-blue-50 text-brand',
-  '발송완료': 'bg-surface-subtle text-text-secondary',
-  '미발송':  'bg-surface-subtle text-text-secondary',
+  '열람':    'bg-blue-50 text-[#55A4DA]',
+  '발송완료': 'bg-gray-100 text-gray-500',
+  '미발송':  'bg-gray-50 text-gray-400',
 };
 
 function DonutChart({ segments, total }: {
@@ -100,7 +100,7 @@ function MonthlyChart({ members, year }: { members: Participant[]; year: number 
           return (
             <g key={i}>
               <rect x={x} y={y} width={barW} height={barH}
-                rx="4" fill={barH > 0 ? 'var(--color-brand, #55A4DA)' : '#f3f4f6'} />
+                rx="4" fill={barH > 0 ? '#55A4DA' : '#f3f4f6'} />
               {d.count > 0 && (
                 <text x={x + barW / 2} y={y - 4} textAnchor="middle"
                   fontSize="9" fill="#6b7280" fontWeight="600">
@@ -116,11 +116,82 @@ function MonthlyChart({ members, year }: { members: Participant[]; year: number 
         })}
       </svg>
       {data.every(d => d.count === 0) && (
-        <p className="text-center text-xs text-icon -mt-6">열람 데이터가 없습니다.</p>
+        <p className="text-center text-xs text-gray-300 -mt-6">열람 데이터가 없습니다.</p>
       )}
     </div>
   );
 }
+
+const MOCK_QUESTIONS: {
+  round: number;
+  type: '주관식' | '체크리스트' | '만족도 설문' | '퀴즈';
+  question: string;
+  mockAnswers: string[];
+}[] = [
+  {
+    round: 1, type: '주관식',
+    question: '내가 가장 자주 사용하는 리더십 패턴은 무엇인가?',
+    mockAnswers: [
+      '저는 결과 중심으로 생각하다 보니 과정보다 성과를 우선시하는 경향이 있습니다.',
+      '팀원들이 말할 때 이미 결론을 생각하고 있어서 경청이 부족한 것 같습니다.',
+      '지시 중심으로 움직이다 보니 팀원들이 수동적으로 반응하는 것을 느낍니다.',
+      '급한 성격 탓에 팀원의 속도를 기다리지 못하고 직접 처리하게 됩니다.',
+      '결과가 좋으면 된다고 생각해서 과정에 대한 피드백이 부족했습니다.',
+    ],
+  },
+  {
+    round: 1, type: '체크리스트',
+    question: '경청 실천 3가지 항목 체크',
+    mockAnswers: [
+      '✅ 회의 중 핸드폰 내려놓기\n✅ 팀원 발언 도중 끼어들지 않기\n☐ 발언 후 요약 확인하기',
+      '✅ 회의 중 핸드폰 내려놓기\n☐ 팀원 발언 도중 끼어들지 않기\n☐ 발언 후 요약 확인하기',
+      '✅ 회의 중 핸드폰 내려놓기\n✅ 팀원 발언 도중 끼어들지 않기\n✅ 발언 후 요약 확인하기',
+      '☐ 회의 중 핸드폰 내려놓기\n✅ 팀원 발언 도중 끼어들지 않기\n✅ 발언 후 요약 확인하기',
+    ],
+  },
+  {
+    round: 2, type: '주관식',
+    question: '팀원이 나에게 가장 원하는 변화는 무엇이라고 생각하는가?',
+    mockAnswers: [
+      '더 많이 들어주고 지시보다 함께 고민해주는 리더가 되길 원할 것 같습니다.',
+      '실패를 허용하고 과정을 인정해주는 분위기를 만들어주길 바랄 것 같습니다.',
+      '명확한 기대치 전달과 적절한 자율성 부여가 필요하다고 느낄 것 같습니다.',
+      '감정적 반응을 줄이고 일관된 태도를 유지해주길 원할 것 같습니다.',
+      '칭찬과 긍정 피드백을 더 자주 전달해주길 원할 것 같습니다.',
+    ],
+  },
+  {
+    round: 2, type: '체크리스트',
+    question: '팀원 피드백 실천 항목',
+    mockAnswers: [
+      '✅ 주 1회 1:1 미팅 진행\n✅ 긍정 피드백 먼저 전달\n☐ 개선 제안 구체적으로 기술',
+      '☐ 주 1회 1:1 미팅 진행\n✅ 긍정 피드백 먼저 전달\n✅ 개선 제안 구체적으로 기술',
+      '✅ 주 1회 1:1 미팅 진행\n☐ 긍정 피드백 먼저 전달\n✅ 개선 제안 구체적으로 기술',
+      '✅ 주 1회 1:1 미팅 진행\n✅ 긍정 피드백 먼저 전달\n✅ 개선 제안 구체적으로 기술',
+    ],
+  },
+  {
+    round: 3, type: '주관식',
+    question: '최근 팀 내 갈등 상황에서 나는 어떻게 대응했는가?',
+    mockAnswers: [
+      '당사자 간 대화를 주선했지만 결론을 내가 일방적으로 내려줬습니다.',
+      '갈등을 회피하고 시간이 해결해주길 기다렸는데 상황이 더 악화됐습니다.',
+      '양측 이야기를 충분히 듣고 중립적 입장에서 조율을 시도했습니다.',
+      '갈등 원인 파악보다 빠른 결과 복구에 집중했습니다.',
+    ],
+  },
+  {
+    round: 3, type: '만족도 설문',
+    question: '이번 회차 콘텐츠에 대한 전반적인 평가',
+    mockAnswers: [
+      '실무에 바로 적용할 수 있는 내용이어서 도움이 됐습니다.',
+      '이론보다 사례 중심으로 구성되어 이해하기 쉬웠습니다.',
+      '분량이 적당했고 핵심 메시지가 명확했습니다.',
+      '좀 더 심층적인 내용이 있으면 더 좋겠습니다.',
+      '팀 상황에 맞게 유연하게 활용할 수 있었습니다.',
+    ],
+  },
+];
 
 export default function CompanyDetailPage() {
   const params = useParams();
@@ -162,6 +233,34 @@ export default function CompanyDetailPage() {
     })),
     [yearMembers],
   );
+
+  const [activeLogRound, setActiveLogRound] = useState<number | 'all'>('all');
+
+  const typeMembers = useMemo(
+    () => activeLeadership ? yearMembers.filter(p => p.leadershipType === activeLeadership) : [],
+    [yearMembers, activeLeadership],
+  );
+
+  const availableRounds = useMemo(() => {
+    if (!activeLeadership || typeMembers.length === 0) return [];
+    const maxStep = Math.max(...typeMembers.map(p => p.stepCurrent), 0);
+    return Array.from({ length: maxStep }, (_, i) => i + 1);
+  }, [typeMembers, activeLeadership]);
+
+  const typeQuestions = useMemo(() => {
+    return MOCK_QUESTIONS
+      .filter(q => activeLogRound === 'all' || q.round === activeLogRound)
+      .filter(q => typeMembers.some(p => p.stepCurrent >= q.round))
+      .map(q => ({
+        round: q.round,
+        type: q.type,
+        question: q.question,
+        responses: typeMembers
+          .filter(p => p.stepCurrent >= q.round)
+          .map((p, i) => ({ name: p.name, answer: q.mockAnswers[i % q.mockAnswers.length] })),
+      }))
+      .filter(q => q.responses.length > 0);
+  }, [typeMembers, activeLogRound]);
 
   const handleDownloadExcel = () => {
     const rows = yearMembers.map(p => {
@@ -213,7 +312,7 @@ export default function CompanyDetailPage() {
 
   if (!company) {
     return (
-      <div className="flex items-center justify-center h-full text-text-secondary text-sm">
+      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
         기업 정보를 찾을 수 없습니다.
       </div>
     );
@@ -222,16 +321,16 @@ export default function CompanyDetailPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* 헤더 */}
-      <div className="bg-surface border-b border-border-light px-8 h-[65px] flex-shrink-0 flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-8 h-[65px] flex-shrink-0 flex items-center gap-3">
         <button
           onClick={() => router.back()}
-          className="text-icon hover:text-text-secondary transition-colors"
+          className="text-gray-400 hover:text-gray-600 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <span className="text-[15px] font-bold text-text-primary">{company.name}</span>
+        <span className="text-[15px] font-bold text-gray-800">{company.name}</span>
         <div className="flex items-center gap-1.5 ml-1">
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot[company.status]}`} />
           <span className={`text-xs font-medium ${statusText[company.status]}`}>{company.status}</span>
@@ -242,23 +341,45 @@ export default function CompanyDetailPage() {
       <div ref={pageRef} className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
         {/* 기업 정보 카드 */}
-        <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-6 flex items-start gap-6">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex items-start gap-6">
           <div className={`w-14 h-14 rounded-2xl ${company.color} flex items-center justify-center flex-shrink-0`}>
             <span className="text-white text-base font-bold">{company.initials}</span>
           </div>
           <div className="flex-1 grid grid-cols-3 gap-4">
             <div>
-              <p className="text-xs text-text-secondary mb-1">업종</p>
-              <p className="text-sm font-medium text-text-primary">{company.industry}</p>
+              <p className="text-xs text-gray-400 mb-1">업종</p>
+              <p className="text-sm font-medium text-gray-700">{company.industry}</p>
             </div>
             <div>
-              <p className="text-xs text-text-secondary mb-1">진단 기간</p>
-              <p className="text-sm font-medium text-text-primary">{company.startDate} ~ {company.endDate}</p>
+              <p className="text-xs text-gray-400 mb-1">진단 기간</p>
+              <p className="text-sm font-medium text-gray-700">{company.startDate} ~ {company.endDate}</p>
             </div>
             <div>
-              <p className="text-xs text-text-secondary mb-1">HR 담당자</p>
-              <p className="text-sm font-medium text-text-primary">{company.hrName || '—'}</p>
-              {company.hrEmail && <p className="text-xs text-text-secondary">{company.hrEmail}</p>}
+              <p className="text-xs text-gray-400 mb-1">HR 담당자</p>
+              <p className="text-sm font-medium text-gray-700">{company.hrName || '—'}</p>
+              {company.hrEmail && <p className="text-xs text-gray-400">{company.hrEmail}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* 리더십 유형 분포 */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <p className="text-sm font-bold text-gray-800 mb-5">리더십 유형 분포</p>
+          <div className="flex items-center gap-8">
+            <DonutChart segments={leadershipDist} total={stats.total} />
+            <div className="flex flex-col gap-3 flex-1">
+              {leadershipDist.map(seg => (
+                <div key={seg.type} className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[seg.type] }} />
+                  <span className="text-sm text-gray-600 flex-1">{seg.type}</span>
+                  <span className="text-sm font-bold text-gray-800">{seg.count}명</span>
+                  {stats.total > 0 && (
+                    <span className="text-xs text-gray-400 w-8 text-right">
+                      {Math.round((seg.count / stats.total) * 100)}%
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -272,8 +393,8 @@ export default function CompanyDetailPage() {
                 onClick={() => setActiveYear(y)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
                   activeYear === y
-                    ? 'bg-brand text-text-onBrand'
-                    : 'bg-surface-subtle text-text-secondary hover:bg-gray-200'
+                    ? 'bg-[#55A4DA] text-white'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 {y}년
@@ -281,11 +402,11 @@ export default function CompanyDetailPage() {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-text-secondary">리더십 유형</span>
+            <span className="text-xs text-gray-400">리더십 유형</span>
             <select
               value={activeLeadership ?? ''}
               onChange={e => setActiveLeadership((e.target.value as LeadershipType) || null)}
-              className="text-sm text-text-secondary bg-surface border border-border-light rounded-lg px-3 py-1.5 pr-8 appearance-none cursor-pointer hover:border-gray-300 focus:outline-none focus:border-brand transition-colors"
+              className="text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-8 appearance-none cursor-pointer hover:border-gray-300 focus:outline-none focus:border-[#55A4DA] transition-colors"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' }}
             >
               <option value="">전체</option>
@@ -298,7 +419,7 @@ export default function CompanyDetailPage() {
             <div ref={downloadRef} className="relative">
               <button
                 onClick={() => setDownloadOpen(prev => !prev)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-text-secondary bg-surface border border-border-light hover:border-brand hover:text-brand transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:border-[#55A4DA] hover:text-[#55A4DA] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -312,10 +433,10 @@ export default function CompanyDetailPage() {
               {downloadOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setDownloadOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1.5 z-20 bg-surface border border-border-light rounded-xl shadow-lg py-1.5 w-44 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1.5 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 w-44 overflow-hidden">
                     <button
                       onClick={handleDownloadExcel}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-surface-hover transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <span className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,23 +444,23 @@ export default function CompanyDetailPage() {
                         </svg>
                       </span>
                       <div className="text-left">
-                        <p className="font-medium text-text-primary">엑셀 다운로드</p>
-                        <p className="text-[11px] text-text-secondary">.xlsx 형식</p>
+                        <p className="font-medium text-gray-800">엑셀 다운로드</p>
+                        <p className="text-[11px] text-gray-400">.xlsx 형식</p>
                       </div>
                     </button>
-                    <div className="mx-4 my-1 border-t border-border-light" />
+                    <div className="mx-4 my-1 border-t border-gray-100" />
                     <button
                       onClick={handleDownloadPng}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-text-primary hover:bg-surface-hover transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <span className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </span>
                       <div className="text-left">
-                        <p className="font-medium text-text-primary">이미지 다운로드</p>
-                        <p className="text-[11px] text-text-secondary">.png 형식</p>
+                        <p className="font-medium text-gray-800">이미지 다운로드</p>
+                        <p className="text-[11px] text-gray-400">.png 형식</p>
                       </div>
                     </button>
                   </div>
@@ -349,112 +470,157 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
-        {/* 핵심 지표 */}
-        <div className="grid grid-cols-4 gap-4">
-          {[
-            { label: '대상 리더', value: stats.total, unit: '명', color: 'text-text-primary' },
-            { label: '발송 완료', value: stats.sent, unit: '명', color: 'text-text-primary' },
-            { label: '열람률', value: stats.openRate, unit: '%', color: 'text-brand' },
-            { label: '참여 완료율', value: stats.completionRate, unit: '%', color: 'text-emerald-500' },
-          ].map(item => (
-            <div key={item.label} className="bg-surface rounded-2xl border border-border-light shadow-sm p-5 text-center">
-              <p className="text-xs text-text-secondary mb-2">{item.label}</p>
-              <p className={`text-3xl font-bold ${item.color}`}>
-                {item.value}
-                <span className="text-sm font-medium text-text-secondary ml-1">{item.unit}</span>
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* 월간 열람 추이 + 리더십 유형 분포 */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* 핵심 지표 + 월간 열람 추이 */}
+        <div className="flex gap-4 items-stretch">
+          {/* 핵심 지표 */}
+          <div className="flex flex-col gap-4 flex-shrink-0 w-[32%]">
+            {[
+              { label: '대상 리더', value: stats.total, unit: '명', color: 'text-gray-800' },
+              { label: '발송 완료', value: stats.sent, unit: '명', color: 'text-gray-800' },
+              { label: '열람률', value: stats.openRate, unit: '%', color: 'text-[#55A4DA]' },
+              { label: '참여 완료율', value: stats.completionRate, unit: '%', color: 'text-emerald-500' },
+            ].map(item => (
+              <div key={item.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-center flex-1 flex flex-col items-center justify-center">
+                <p className="text-xs text-gray-400 mb-2">{item.label}</p>
+                <p className={`text-3xl font-bold ${item.color}`}>
+                  {item.value}
+                  <span className="text-sm font-medium text-gray-400 ml-1">{item.unit}</span>
+                </p>
+              </div>
+            ))}
+          </div>
 
           {/* 월간 열람 추이 */}
-          <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-6">
-            <p className="text-sm font-bold text-text-primary mb-5">월간 열람 추이</p>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex-1">
+            <p className="text-sm font-bold text-gray-800 mb-5">월간 열람 추이</p>
             <MonthlyChart members={yearMembers} year={activeYear} />
           </div>
-
-          {/* 리더십 유형 분포 */}
-          <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-6">
-            <p className="text-sm font-bold text-text-primary mb-5">리더십 유형 분포</p>
-            <div className="flex items-center gap-8">
-              <DonutChart segments={leadershipDist} total={stats.total} />
-              <div className="flex flex-col gap-3 flex-1">
-                {leadershipDist.map(seg => (
-                  <div key={seg.type} className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[seg.type] }} />
-                    <span className="text-sm text-text-secondary flex-1">{seg.type}</span>
-                    <span className="text-sm font-bold text-text-primary">{seg.count}명</span>
-                    {stats.total > 0 && (
-                      <span className="text-xs text-text-secondary w-8 text-right">
-                        {Math.round((seg.count / stats.total) * 100)}%
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
         </div>
 
         {/* 리더 목록 */}
-        <div className="bg-surface rounded-2xl border border-border-light shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-border-light">
-            <p className="text-sm font-bold text-text-primary">직책자 현황</p>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <p className="text-sm font-bold text-gray-800">직책자 현황</p>
           </div>
           {yearMembers.length === 0 ? (
-            <div className="flex items-center justify-center h-32 text-icon text-sm">
+            <div className="flex items-center justify-center h-32 text-gray-300 text-sm">
               데이터가 없습니다.
             </div>
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="bg-surface-subtle text-xs text-text-secondary">
+                <tr className="bg-gray-50 text-xs text-gray-400">
                   <th className="px-6 py-3 text-left font-medium">이름</th>
                   <th className="px-6 py-3 text-left font-medium">부서 / 직급</th>
                   <th className="px-6 py-3 text-left font-medium">리더십 유형</th>
-                  <th className="px-6 py-3 text-left font-medium">발송 상태</th>
-                  <th className="px-6 py-3 text-left font-medium">진행 단계</th>
+                  <th className="px-6 py-3 text-left font-medium">진행 회차</th>
                   <th className="px-6 py-3 text-left font-medium">최근 열람</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-light">
+              <tbody className="divide-y divide-gray-50">
                 {yearMembers.filter(p => activeLeadership === null || p.leadershipType === activeLeadership).map(p => (
-                  <tr key={p.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-6 py-3.5 text-sm font-medium text-text-primary">{p.name}</td>
-                    <td className="px-6 py-3.5 text-sm text-text-secondary">{p.department} · {p.position}</td>
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-3.5 text-sm font-medium text-gray-800">{p.name}</td>
+                    <td className="px-6 py-3.5 text-sm text-gray-500">{p.department} · {p.position}</td>
                     <td className="px-6 py-3.5">
                       <span className="inline-flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[p.leadershipType] }} />
-                        <span className="text-sm text-text-secondary">{p.leadershipType}</span>
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${deliveryBadge[p.deliveryStatus]}`}>
-                        {p.deliveryStatus}
+                        <span className="text-sm text-gray-600">{p.leadershipType}</span>
                       </span>
                     </td>
                     <td className="px-6 py-3.5">
                       <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 bg-surface-subtle rounded-full overflow-hidden">
+                        <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-brand rounded-full"
+                            className="h-full bg-[#55A4DA] rounded-full"
                             style={{ width: `${p.stepTotal > 0 ? (p.stepCurrent / p.stepTotal) * 100 : 0}%` }}
                           />
                         </div>
-                        <span className="text-xs text-text-secondary">{p.stepCurrent}/{p.stepTotal}</span>
+                        <span className="text-xs text-gray-400">{p.stepCurrent}/{p.stepTotal}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-sm text-text-secondary">{p.lastOpenedAt ?? '—'}</td>
+                    <td className="px-6 py-3.5 text-sm text-gray-400">{p.lastOpenedAt ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* 유형별 활동 로그 */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-bold text-gray-800">유형별 활동 로그</p>
+              {activeLeadership && (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[activeLeadership] }} />
+                  <span className="text-xs text-gray-400">{activeLeadership} · {typeMembers.length}명</span>
+                </span>
+              )}
+            </div>
+            {activeLeadership && availableRounds.length > 0 && (
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setActiveLogRound('all')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeLogRound === 'all' ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >
+                  전체
+                </button>
+                {availableRounds.map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setActiveLogRound(r)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeLogRound === r ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    {r}회차
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!activeLeadership ? (
+            <div className="flex flex-col items-center justify-center h-28 gap-2">
+              <svg className="w-6 h-6 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <p className="text-sm text-gray-300">리더십 유형을 선택하면 해당 유형 리더들의 활동 로그를 확인할 수 있습니다.</p>
+            </div>
+          ) : typeQuestions.length === 0 ? (
+            <div className="flex items-center justify-center h-24 text-sm text-gray-300">
+              활동 내역이 없습니다.
+            </div>
+          ) : (
+            <div className="p-5 space-y-4 max-h-[520px] overflow-y-auto">
+              {typeQuestions.map((q, i) => (
+                <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+                  {/* 질문 헤더 */}
+                  <div className="px-4 py-3 bg-gray-50 flex items-center gap-2">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      q.type === '주관식'     ? 'bg-purple-50 text-purple-600' :
+                      q.type === '체크리스트' ? 'bg-blue-50 text-blue-600' :
+                      q.type === '만족도 설문'? 'bg-gray-200 text-gray-500' :
+                                               'bg-amber-50 text-amber-600'
+                    }`}>{q.type}</span>
+                    <span className="text-sm font-medium text-gray-700 flex-1">{q.question}</span>
+                    <span className="text-[11px] text-gray-300 flex-shrink-0">{q.round}회차</span>
+                  </div>
+                  {/* 응답 목록 */}
+                  <div className="divide-y divide-gray-50">
+                    {q.responses.map((r, j) => (
+                      <div key={j} className="px-4 py-3 flex gap-4 hover:bg-gray-50/60 transition-colors">
+                        <span className="text-xs font-semibold text-gray-400 w-14 flex-shrink-0 pt-0.5">{r.name}</span>
+                        <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line flex-1">{r.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
