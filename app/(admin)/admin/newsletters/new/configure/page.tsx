@@ -1968,6 +1968,24 @@ function ConfigureContent() {
               </div>
             </div>
 
+            {/* 그룹/일반형 탭 (좌우 공용) */}
+            {(() => {
+              const r = rounds[activeRoundIdx];
+              if (!r) return null;
+              const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+              const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+              const currentTarget = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
+              return (
+                <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {tabs.map(t => (
+                      <button key={t.id} onClick={() => setPreviewTargetId(t.id)} className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${currentTarget === t.id ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.label}</button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* 본문: 좌우 2분할 */}
             <div className="flex-1 flex overflow-hidden">
               {/* 좌측: 실시간 미리보기 */}
@@ -1980,11 +1998,9 @@ function ConfigureContent() {
                   const current = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
                   return (
                     <div className="space-y-3">
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">실시간 미리보기</p>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {tabs.map(t => (
-                          <button key={t.id} onClick={() => setPreviewTargetId(t.id)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${current === t.id ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.label}</button>
-                        ))}
+                      <div className="pb-1">
+                        <p className="text-base font-bold text-gray-800">실시간 미리보기</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">선택한 대상이 받게 될 뉴스레터 화면</p>
                       </div>
                       <div className="max-w-md mx-auto w-full">
                         {renderLivePreview(current)}
@@ -1994,25 +2010,22 @@ function ConfigureContent() {
                 })()}
               </div>
 
-              {/* 우측: 콘텐츠 편집 */}
+              {/* 우측: 콘텐츠 편집 (선택한 탭만) */}
               <div className="w-1/2 flex-shrink-0 overflow-y-auto px-6 py-4">
                 {(() => {
               const r = rounds[activeRoundIdx];
               if (!r) return null;
               const s = customStoryline[r.stepIndex];
-              const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+              const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+              const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+              const currentTarget = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
               return (
                 <div className="space-y-2">
 
                   {/* 회차 헤더 */}
-                  <div className="flex items-center gap-3 pb-1">
-                    <div className={`w-8 h-8 rounded-full ${color.badge} flex items-center justify-center flex-shrink-0`}>
-                      <span className="text-white text-xs font-bold">{s?.step}</span>
-                    </div>
-                    <div>
-                      <p className={`text-sm font-bold ${color.titleColor}`}>{activeRoundIdx + 1}회차 구성</p>
-                      <p className="text-[11px] text-gray-400">{s?.title} · {s?.subtitle}</p>
-                    </div>
+                  <div className="pb-1">
+                    <p className="text-base font-bold text-gray-800">{activeRoundIdx + 1}회차 콘텐츠 구성</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{s?.title} · {s?.subtitle}</p>
                   </div>
 
                   {/* 수신 구성 요약 (Step 3에서 배분) */}
@@ -2029,12 +2042,13 @@ function ConfigureContent() {
                     <span className="text-[10px] text-gray-400 ml-auto">유형 배분은 이전 단계에서 변경하세요.</span>
                   </div>
 
-                  {/* 맞춤형 그룹 섹션 */}
-                  {r.customGroups.filter(g => g.types.length > 0).map((g, gi) => {
+                  {/* 맞춤형 그룹 섹션 (선택한 탭만) */}
+                  {activeGroups.map((g, gi) => {
+                    if (g.id !== currentTarget) return null;
                     const panelKey = `panel:${g.id}`;
                     return (
-                      <div key={g.id} className="bg-[#55A4DA]/5 rounded-2xl border border-[#55A4DA]/30 overflow-hidden">
-                        <button onClick={() => toggleSectionKey(panelKey)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-[#55A4DA]/10 transition-colors">
+                      <div key={g.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <button onClick={() => toggleSectionKey(panelKey)} className="w-full px-5 py-3 flex items-center gap-2 hover:bg-gray-50 transition-colors">
                           <p className="text-sm font-bold text-[#2E7DB5] flex-1 text-left">맞춤형 그룹 {gi + 1} · {g.types.join('+')} <span className="font-normal text-[#55A4DA]/70">({g.leaderIds.length}명)</span></p>
                           <svg className={`w-3.5 h-3.5 text-[#55A4DA] flex-shrink-0 transition-transform duration-200 ${isSectionOpen(panelKey) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
@@ -2063,8 +2077,8 @@ function ConfigureContent() {
                     );
                   })}
 
-                  {/* 일반형 섹션 */}
-                  {(() => {
+                  {/* 일반형 섹션 (일반형 탭일 때만) */}
+                  {currentTarget === 'general' && (() => {
                     const hasCustom = r.customGroups.some(g => g.types.length > 0);
                     const generalParticipants = selectedParticipants.filter(p => r.generalLeaderIds.includes(p.id));
                     const posCount = generalParticipants.filter(p => POSITIVE_TYPES.includes(p.leadershipType)).length;
@@ -2076,8 +2090,8 @@ function ConfigureContent() {
                     if (posCount > 0) parts.push(`긍정 리더 ${posCount}명`);
                     negParts.forEach(g => parts.push(g));
                     return (
-                  <div className={`rounded-2xl overflow-hidden ${hasCustom ? 'bg-gray-50 border border-gray-200' : 'bg-white border border-gray-200 shadow-sm'}`}>
-                    <button onClick={() => toggleSectionKey('panel:general')} className={`w-full px-5 py-3 flex items-center gap-2 transition-colors ${hasCustom ? 'hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                    <button onClick={() => toggleSectionKey('panel:general')} className="w-full px-5 py-3 flex items-center gap-2 transition-colors hover:bg-gray-50">
                       <div className="flex-1 text-left min-w-0">
                         <p className="text-sm font-bold text-gray-800">
                           일반형 <span className="font-normal text-gray-400">({hasCustom ? `나머지 ${r.generalLeaderIds.length}명` : `${selectedParticipants.length}명`})</span>
