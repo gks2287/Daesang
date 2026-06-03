@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNewsletterStore } from '@/store/newsletterStore';
@@ -192,6 +192,16 @@ function ConfigureContent() {
   // ── 4단계: 콘텐츠 구성 (회차별 통합) ──
   const [rounds, setRounds] = useState<Round[]>(configDraft.rounds);
   const [activeRoundIdx, setActiveRoundIdx] = useState(0);
+  // 좌측 실시간 미리보기 대상 탭 ('general' 또는 그룹 id)
+  const [previewTargetId, setPreviewTargetId] = useState<string>('general');
+  // AI 자동 채움 중복 실행 가드 (`${roundIdx}:${targetId}`)
+  const autoFilledRef = useRef<Set<string>>(new Set());
+  // 좌측 실시간 미리보기 본문 (generate API 결과, `${roundIdx}:${targetId}` 키)
+  const [livePreviewContent, setLivePreviewContent] = useState<Record<string, GeneratedNewsletter>>({});
+  const [livePreviewGenerating, setLivePreviewGenerating] = useState<Set<string>>(new Set());
+  const livePreviewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // 이미 생성한 구성 시그니처 (동일 구성 재생성 방지 — 탭 전환 시 불필요한 호출 차단)
+  const livePreviewDoneRef = useRef<Set<string>>(new Set());
 
   // 주제 선정
   const [suggestions, setSuggestions] = useState<TopicSuggestion[]>(configDraft.suggestions);
@@ -244,20 +254,61 @@ function ConfigureContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution]);
 
-  // Step 4 진입/회차 전환 시 주제가 없으면 AI 자동 추천
+  // Step 4 진입/회차 전환 시 활성 그룹 + 일반형 각각 주제·콘텐츠 AI 자동 채움
   useEffect(() => {
     if (wizardStep !== 4) return;
     const r = rounds[activeRoundIdx];
-    if (!r || r.topic.trim()) return;
-    void fetchTopicsForRound(activeRoundIdx, 'general');
+    if (!r) return;
+    const targets = [...r.customGroups.filter(g => g.types.length > 0).map(g => g.id), 'general'];
+    targets.forEach(targetId => { void autoFillTarget(activeRoundIdx, targetId); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, activeRoundIdx]);
 
-  // 회차 전환 시 아코디언 초기화 (모두 펼침)
+  // 회차 전환 시 아코디언 초기화 (모두 펼침) + 미리보기 대상 리셋
   useEffect(() => {
     setCollapsedSections(new Set());
     setSuggestionsTarget('general');
+    const r = rounds[activeRoundIdx];
+    const firstGroup = r?.customGroups.find(g => g.types.length > 0);
+    setPreviewTargetId(firstGroup ? firstGroup.id : 'general');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoundIdx]);
+
+  // 현재 미리보기 대상의 구성 시그니처 (주제/콘텐츠/인터랙션/만족도 변경 감지)
+  const previewSignature = useMemo(() => {
+    if (wizardStep !== 4) return '';
+    const r = rounds[activeRoundIdx];
+    if (!r) return '';
+    const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+    const targetId = previewTargetId !== 'general' && activeGroups.some(g => g.id === previewTargetId)
+      ? previewTargetId
+      : (previewTargetId === 'general' ? 'general' : (activeGroups[0]?.id ?? 'general'));
+    const isCustom = targetId !== 'general';
+    const g = isCustom ? activeGroups.find(x => x.id === targetId) : undefined;
+    const topic = isCustom ? (g?.topic ?? '') : r.topic;
+    const contents = isCustom ? (g?.contents ?? []) : r.contents;
+    const interactions = isCustom ? (g?.interactions ?? []) : r.interactions;
+    const surveys = isCustom ? (g?.surveys ?? []) : r.surveys;
+    return JSON.stringify({ roundIdx: activeRoundIdx, targetId, topic, ids: contents.map(c => c.id), interactions, surveys });
+  }, [wizardStep, activeRoundIdx, previewTargetId, rounds]);
+
+  // 구성 변경 시 debounce 500ms 후 미리보기 본문 자동 생성
+  useEffect(() => {
+    if (!previewSignature) return;
+    if (livePreviewDoneRef.current.has(previewSignature)) return; // 동일 구성 이미 생성됨
+    const parsed = JSON.parse(previewSignature) as { roundIdx: number; targetId: string; topic: string; ids: string[] };
+    if (!parsed.topic.trim() && parsed.ids.length === 0) return;
+    const key = `${parsed.roundIdx}:${parsed.targetId}`;
+    const sig = previewSignature;
+    const timers = livePreviewTimers.current;
+    if (timers[key]) clearTimeout(timers[key]);
+    timers[key] = setTimeout(async () => {
+      livePreviewDoneRef.current.add(sig);
+      await generateLivePreview(parsed.roundIdx, parsed.targetId);
+    }, 500);
+    return () => { if (timers[key]) clearTimeout(timers[key]); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewSignature]);
 
   // 아코디언 펼침 여부 (collapsedSections에 없으면 펼침)
   function isSectionOpen(key: string): boolean {
@@ -313,6 +364,47 @@ function ConfigureContent() {
         s.delete(roundIdx);
         return s;
       });
+    }
+  }
+
+  // ── Step 4 좌측 실시간 미리보기: 그룹/일반형 단위로 generate API 호출 ──
+  async function generateLivePreview(roundIdx: number, targetId: string) {
+    const r = rounds[roundIdx];
+    if (!r) return;
+    const isCustom = targetId !== 'general';
+    const group = isCustom ? r.customGroups.find(g => g.id === targetId) : undefined;
+    if (isCustom && !group) return;
+    const topic = isCustom ? (group?.topic ?? '') : r.topic;
+    const contents = isCustom ? (group?.contents ?? []) : r.contents;
+    const interactions = isCustom ? (group?.interactions ?? []) : r.interactions;
+    const surveys = isCustom ? (group?.surveys ?? []) : r.surveys;
+    if (!topic.trim() && contents.length === 0) return;
+    const key = `${roundIdx}:${targetId}`;
+    setLivePreviewGenerating(prev => new Set([...prev, key]));
+    try {
+      const res = await fetch('/api/newsletter/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          round: {
+            id: r.id,
+            topic,
+            stepLabel: customStoryline[r.stepIndex]?.title ?? '',
+            contents,
+            interactions,
+            surveys,
+          },
+          leadershipType: isCustom && group && group.types.length > 0 ? group.types.join(', ') : '일반형',
+          companyName: targetCompanies.map(c => c.name).join(', ') || '대상 기업',
+        }),
+      });
+      if (!res.ok) throw new Error('생성 실패');
+      const data: GeneratedNewsletter = await res.json();
+      setLivePreviewContent(prev => ({ ...prev, [key]: data }));
+    } catch (e) {
+      console.error('미리보기 생성 오류:', e);
+    } finally {
+      setLivePreviewGenerating(prev => { const s = new Set(prev); s.delete(key); return s; });
     }
   }
 
@@ -412,6 +504,47 @@ function ConfigureContent() {
     } finally {
       setIsLoadingTopics(false);
     }
+  }
+
+  // 회차 진입 시 주제 자동 추천 → 첫 추천 자동 선택 → 콘텐츠 자동 서칭 (공유 suggestions UI 미사용)
+  async function autoFillTarget(roundIdx: number, targetId: string) {
+    const key = `${roundIdx}:${targetId}`;
+    if (autoFilledRef.current.has(key)) return;
+    const isCustom = targetId !== 'general';
+    const r = rounds[roundIdx];
+    if (!r) return;
+    const group = isCustom ? r.customGroups.find(g => g.id === targetId) : undefined;
+    if (isCustom && !group) return;
+    const existingTopic = isCustom ? (group?.topic ?? '') : r.topic;
+    autoFilledRef.current.add(key);
+    if (existingTopic.trim()) return; // 이미 주제 있으면 가드만 등록하고 스킵
+    // 주제 추천 호출 (실패 시 1회 자동 재시도) — 유형/단계/회차/기업명 모두 반영
+    const requestTopics = async (): Promise<TopicSuggestion[] | null> => {
+      const body = JSON.stringify({
+        leadershipTypes: (isCustom && group && group.types.length > 0) ? group.types : ['일반형'],
+        companyName: targetCompanies[0]?.name ?? '',
+        kind: isCustom ? '맞춤형' : '일반형',
+        stepTitle: customStoryline[r.stepIndex]?.title ?? '',
+        roundIndex: roundIdx + 1,
+      });
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await fetch('/api/topics/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+          if (res.ok) {
+            const data = await res.json() as { topics: TopicSuggestion[] };
+            if (data.topics?.length) return data.topics;
+          }
+        } catch { /* 재시도 */ }
+      }
+      return null;
+    };
+    const topics = await requestTopics();
+    const first = topics?.[0]?.title;
+    if (!first) { autoFilledRef.current.delete(key); return; }
+    if (isCustom) setGroupTopic(roundIdx, targetId, first);
+    else setRoundTopic(roundIdx, first);
+    if (isCustom) await suggestGroupContents(roundIdx, targetId, first);
+    else await suggestContentsForRound(roundIdx, first);
   }
 
   function setRoundTopic(roundIdx: number, topic: string) {
@@ -784,7 +917,7 @@ function ConfigureContent() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">이 회차 · 단계에 맞는 주제를 AI가 추천합니다.</p>
                   <button onClick={() => fetchTopicsForRound(activeRoundIdx, targetId)} disabled={isLoadingTopics} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ml-3 ${isLoadingTopics ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#55A4DA] hover:bg-[#3A8BC4] text-white shadow-sm'}`}>
-                    {isLoadingTopics ? (<><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>생성 중...</>) : (<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>{suggestions.length > 0 && isTarget ? '다시 추천' : 'AI 추천받기'}</>)}
+                    {isLoadingTopics ? (<><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>생성 중...</>) : (<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>AI 재추천</>)}
                   </button>
                 </div>
                 {topicError && isTarget && (
@@ -821,7 +954,8 @@ function ConfigureContent() {
             <span className="text-sm font-bold text-[#55A4DA] flex-shrink-0">3</span>
             <p className="text-sm font-bold text-gray-800 flex-1">콘텐츠 선택</p>
             {contents.length > 0 ? (<span className="text-[11px] font-semibold text-[#55A4DA] flex-shrink-0">{contents.length}개 선택됨</span>) : (<span className="text-[11px] text-gray-400 flex-shrink-0">선택사항</span>)}
-            <button onClick={e => { e.stopPropagation(); opts.openPool(); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀</button>
+            <button onClick={e => { e.stopPropagation(); if (topic.trim()) opts.suggestContents(topic.trim()); }} disabled={!topic.trim() || contentSuggestLoading[activeRoundIdx]} className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-colors ml-2 flex-shrink-0 border ${!topic.trim() || contentSuggestLoading[activeRoundIdx] ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-[#55A4DA] text-[#55A4DA] hover:bg-[#55A4DA]/5'}`} title={topic.trim() ? '현재 주제로 콘텐츠 다시 가져오기' : '주제를 먼저 선택하세요'}><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>콘텐츠 다시 가져오기</button>
+            <button onClick={e => { e.stopPropagation(); opts.openPool(); }} className="flex items-center gap-1 px-2.5 py-1 bg-[#55A4DA] hover:bg-[#3A8BC4] text-white text-xs font-bold rounded-lg transition-colors ml-1.5 flex-shrink-0"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>콘텐츠 풀</button>
             <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 ml-1 transition-transform duration-200 ${isSectionOpen(kContent) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </div>
           <div className={`grid transition-all duration-200 ${isSectionOpen(kContent) ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
@@ -889,6 +1023,341 @@ function ConfigureContent() {
           </div>
         </div>
       </>
+    );
+  }
+
+  // ── 생성된 뉴스레터 전체 본문 렌더 (Step 4 미리보기 · Step 5 모달 공용) ──
+  function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: { vol: number; dateLabel: string; leadershipLabel: string; firstThumbnail: string }) {
+    const { vol, dateLabel, leadershipLabel, firstThumbnail } = opts;
+    return (
+      <div style={{ backgroundColor: '#F0F7FF' }} className="rounded-2xl overflow-hidden max-w-2xl mx-auto shadow-md border border-[#D6EAF8]">
+        {/* 헤더 */}
+        <div className="px-6 py-3.5 flex items-center justify-between bg-white border-b border-[#D6EAF8]">
+          <div className="flex items-center gap-2">
+            <img src="/logo-jc.png" alt="J&Company" className="h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <span className="text-sm font-black text-gray-800 tracking-wider">J&COMPANY</span>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] text-gray-400">Vol.{vol} · {dateLabel}</p>
+            {leadershipLabel && <p className="text-[10px] text-gray-400 mt-0.5">{leadershipLabel}</p>}
+          </div>
+        </div>
+        {/* 히어로 */}
+        <div className="relative w-full h-44 overflow-hidden">
+          {firstThumbnail ? (
+            <>
+              <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#2B9EE8] to-[#1a6fad]" />
+          )}
+          <div className="absolute bottom-0 left-0 right-0 px-6 pb-3">
+            <p className="text-[10px] text-white/60 mb-0.5 uppercase tracking-widest">이번 호 제목</p>
+            <p className="text-sm font-black text-white leading-snug">{generated.subject}</p>
+          </div>
+        </div>
+        <div className="px-6 py-6 space-y-5">
+          {/* 헤드라인 + 인트로 */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
+            <p className="text-base font-black text-gray-800 leading-snug mb-2">{generated.headline}</p>
+            <p className="text-sm text-gray-600 leading-relaxed">{generated.intro}</p>
+          </div>
+          {/* CONTENTS 구분 */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-[#D6EAF8]" />
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CONTENTS</span>
+            <div className="flex-1 border-t border-[#D6EAF8]" />
+          </div>
+          {/* 섹션별 본문 */}
+          {generated.sections.map(sec => (
+            <div key={sec.contentId} className="bg-white rounded-2xl p-5 border border-[#D6EAF8] space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0 mt-0.5">{sec.emoji}</span>
+                <p className="text-sm font-black text-gray-800 leading-snug">{sec.contentTitle}</p>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">{sec.summary}</p>
+              <div className="bg-[#F0FDF4] border border-emerald-200 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-bold text-emerald-700 mb-0.5">💡 핵심 포인트</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{sec.keyTakeaway}</p>
+              </div>
+              {sec.youtubeUrl && (
+                <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                  <iframe src={sec.youtubeUrl} className="w-full h-full" allowFullScreen title={sec.contentTitle} />
+                </div>
+              )}
+            </div>
+          ))}
+          {/* INTERACTION 구분 */}
+          {generated.interactions.length > 0 && (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 border-t border-[#D6EAF8]" />
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">INTERACTION</span>
+                <div className="flex-1 border-t border-[#D6EAF8]" />
+              </div>
+              {generated.interactions.map((ia, idx) => {
+                if (ia.type === 'quiz') {
+                  const c = ia.content as { question: string; options: string[]; answer: number };
+                  return (
+                    <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                      <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{c.question}</p>
+                      <div className="space-y-2">
+                        {(c.options ?? []).map((opt, i) => (
+                          <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700">
+                            <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />{opt}
+                          </div>
+                        ))}
+                      </div>
+                      <button className="text-xs font-bold text-[#2B9EE8] hover:underline">정답 확인하기 →</button>
+                    </div>
+                  );
+                }
+                if (ia.type === 'scenario') {
+                  const c = ia.content as { situation: string; options: { label: string; result: string }[] };
+                  return (
+                    <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                      <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                      <p className="text-sm text-gray-700 leading-relaxed">{c.situation}</p>
+                      <div className="space-y-2">
+                        {(c.options ?? []).map((opt, i) => (
+                          <button key={i} className="w-full text-left px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700 hover:bg-blue-50 transition-colors">{opt.label}</button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (ia.type === 'selfcheck') {
+                  const c = ia.content as { items: string[] };
+                  return (
+                    <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                      <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                      <div className="space-y-2">
+                        {(c.items ?? []).map((item, i) => (
+                          <div key={i} className="flex items-start gap-2.5">
+                            <div className="w-4 h-4 rounded border-2 border-blue-300 flex-shrink-0 mt-0.5 bg-white" />
+                            <p className="text-sm text-gray-700">{item}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (ia.type === 'reflection') {
+                  const c = ia.content as { questions: string[] };
+                  return (
+                    <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                      <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                      <div className="space-y-2">
+                        {(c.questions ?? []).map((q, i) => (
+                          <div key={i} className="bg-white rounded-xl px-4 py-3 border border-blue-100">
+                            <p className="text-[11px] font-bold text-[#2B9EE8] mb-0.5">Q{i + 1}</p>
+                            <p className="text-sm text-gray-700">{q}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (ia.type === 'dodont') {
+                  const c = ia.content as { do: string[]; dont: string[] };
+                  return (
+                    <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
+                      <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white rounded-xl p-3 border border-emerald-200">
+                          <p className="text-xs font-bold text-emerald-600 mb-2">Do</p>
+                          <ul className="space-y-1.5">
+                            {(c.do ?? []).map((item, i) => (
+                              <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-emerald-500 flex-shrink-0 mt-0.5">•</span>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-red-200">
+                          <p className="text-xs font-bold text-red-500 mb-2">Don't</p>
+                          <ul className="space-y-1.5">
+                            {(c.dont ?? []).map((item, i) => (
+                              <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-red-400 flex-shrink-0 mt-0.5">•</span>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </>
+          )}
+          {/* SURVEY 구분 */}
+          {generated.surveys.length > 0 && (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 border-t border-[#D6EAF8]" />
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">SURVEY</span>
+                <div className="flex-1 border-t border-[#D6EAF8]" />
+              </div>
+              {generated.surveys.map((survey, idx) => {
+                if (survey.type === 'always') {
+                  const q = survey.questions[0] as { type: 'rating'; options: string[]; followUp: string; followUpOptions: string[]; openQuestion: string };
+                  return (
+                    <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-4">
+                      <p className="text-sm font-bold text-gray-800">📊 이번 뉴스레터 어떠셨나요?</p>
+                      <div className="flex gap-2">
+                        {(q.options ?? []).map((opt, i) => (
+                          <button key={i} className="flex-1 flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-amber-200 hover:bg-amber-50 transition-colors">
+                            <span className="text-xl">{['😐', '😊', '🤩'][i]}</span>
+                            <span className="text-[10px] text-gray-600">{opt}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 mb-2">{q.followUp}</p>
+                        <div className="space-y-1.5">
+                          {(q.followUpOptions ?? []).map((opt, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <div className="w-4 h-4 rounded border-2 border-amber-300 flex-shrink-0 bg-white" />
+                              <p className="text-xs text-gray-700">{opt}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 mb-1.5">{q.openQuestion}</p>
+                        <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
+                      </div>
+                    </div>
+                  );
+                }
+                if (survey.type === 'periodic') {
+                  const questions = survey.questions as PeriodicSurveyQuestion[];
+                  return (
+                    <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-5">
+                      <p className="text-sm font-bold text-gray-800">📊 정기 만족도 조사</p>
+                      {questions.map((q, i) => (
+                        <div key={i}>
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Q{i + 1}. {q.question}</p>
+                          {q.type === 'scale' && (
+                            <div>
+                              <div className="flex gap-1">
+                                {Array.from({ length: q.scale }, (_, n) => (
+                                  <button key={n} className="flex-1 py-1.5 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{n + 1}</button>
+                                ))}
+                              </div>
+                              <div className="flex justify-between mt-1">
+                                <span className="text-[10px] text-gray-400">매우 불만족</span>
+                                <span className="text-[10px] text-gray-400">매우 만족</span>
+                              </div>
+                            </div>
+                          )}
+                          {q.type === 'multiple' && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {q.options.map((opt, j) => (
+                                <button key={j} className="px-3 py-1 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{opt}</button>
+                              ))}
+                            </div>
+                          )}
+                          {q.type === 'open' && (
+                            <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
+                          )}
+                        </div>
+                      ))}
+                      <button className="w-full py-2.5 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors">제출하기</button>
+                    </div>
+                  );
+                }
+                return null;
+              })}
+            </>
+          )}
+          {/* 클로징 */}
+          <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
+            <p className="text-sm text-gray-600 leading-relaxed italic mb-2">{generated.closing}</p>
+            <p className="text-xs text-gray-400 font-semibold">J&Company 코칭팀 드림</p>
+          </div>
+          {/* 마이페이지 바로가기 */}
+          <div className="flex justify-center py-1">
+            <button className="flex items-center gap-2 px-6 py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-2xl transition-colors shadow-sm">
+              내 마이페이지 바로가기
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          {/* 푸터 */}
+          <div className="flex items-center justify-between pb-1">
+            <img src="/logo-jc.png" alt="J&Company" className="h-5 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+            <div className="flex gap-3">
+              <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">수신거부</span>
+              <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">문의하기</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 4: 좌측 실시간 미리보기 (우측 편집 내용을 그대로 반영) ──
+  function renderLivePreview(targetId: string) {
+    const r = rounds[activeRoundIdx];
+    if (!r) return null;
+    const isCustom = targetId !== 'general';
+    const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+    const group = isCustom ? activeGroups.find(g => g.id === targetId) : undefined;
+    const topic = isCustom ? (group?.topic ?? '') : r.topic;
+    const contents = isCustom ? (group?.contents ?? []) : r.contents;
+    const gi = isCustom ? activeGroups.findIndex(g => g.id === targetId) : -1;
+    const targetLabel = isCustom ? `맞춤형 그룹 ${gi + 1} · ${group?.types.join('+') ?? ''}` : '일반형';
+    const targetCount = isCustom ? (group?.leaderIds.length ?? 0) : r.generalLeaderIds.length;
+    const firstThumbnail = contents[0]?.thumbnail ?? '';
+    const hasConfig = topic.trim().length > 0 || contents.length > 0;
+    const leadershipLabel = isCustom ? (group?.types.join(', ') ?? '') : '일반형';
+    const key = `${activeRoundIdx}:${targetId}`;
+    const generating = livePreviewGenerating.has(key);
+    const generated = livePreviewContent[key];
+
+    const labelBar = (
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-bold text-[#2E7DB5]">{targetLabel} <span className="font-normal text-gray-400">· 대상 {targetCount}명</span></p>
+        {generating && (
+          <span className="text-[10px] text-[#55A4DA] font-semibold flex items-center gap-1 flex-shrink-0">
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+            업데이트 중
+          </span>
+        )}
+      </div>
+    );
+
+    if (!hasConfig) {
+      return (
+        <div className="space-y-2">
+          {labelBar}
+          <div className="rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-2 text-center">
+            <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            <p className="text-xs text-gray-400">콘텐츠를 추가하면 여기에 표시됩니다</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!generated) {
+      return (
+        <div className="space-y-2">
+          {labelBar}
+          <div className="rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-3 text-center">
+            <svg className="w-7 h-7 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+            <p className="text-xs text-gray-500">AI가 미리보기 본문을 생성 중입니다...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {labelBar}
+        {renderGeneratedFullBody(generated, { vol: activeRoundIdx + 1, dateLabel: '발송일 미정', leadershipLabel, firstThumbnail })}
+      </div>
     );
   }
 
@@ -993,15 +1462,6 @@ function ConfigureContent() {
         <div className="bg-white border-b border-gray-200 px-8 py-2 flex items-center gap-3 flex-shrink-0">
           <span className="text-xs text-gray-400">대상 기업</span>
           <span className="text-sm font-semibold text-gray-800">{targetCompanies[0]?.name ?? '—'}</span>
-          <button
-            onClick={() => {
-              configDraft.setDraft({ companyIds: [], wizardStep: 1, rounds: [] });
-              setWizardStep(1);
-            }}
-            className="text-xs font-medium text-[#55A4DA] hover:text-[#2E7DB5] transition-colors"
-          >
-            변경
-          </button>
           <div className="w-px h-4 bg-gray-200" />
           <span className="text-xs text-gray-500">
             대상 리더 <span className="font-semibold text-gray-700">{selectedParticipants.length}명</span>
@@ -1472,73 +1932,71 @@ function ConfigureContent() {
           4단계: 콘텐츠 구성 (회차별 통합)
       ════════════════════════════════ */}
       {wizardStep === 4 && (
-        <div className="flex-1 overflow-hidden bg-[#F8FAFC] flex">
-
-          {/* 왼쪽: 회차 목록 (w-72, 독립 스크롤) */}
-          <div className="w-72 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-            <div className="px-4 py-3.5 border-b border-gray-100">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">회차 목록</p>
+        <div className="flex-1 overflow-hidden bg-[#F8FAFC] flex flex-col">
+          {rounds.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+              2단계에서 회차를 먼저 설계해주세요.
             </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              {rounds.map((r, idx) => {
-                const s = customStoryline[r.stepIndex];
-                const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
-                const isActive = idx === activeRoundIdx;
-                const activeGroups = r.customGroups.filter(g => g.types.length > 0);
-                const isDone = activeGroups.length > 0
-                  ? activeGroups.every(g => g.topic.trim().length > 0) && r.topic.trim().length > 0
-                  : r.topic.trim().length > 0;
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => switchRound(idx)}
-                    className={`w-full text-left px-4 py-2 transition-colors ${
-                      isActive ? 'bg-[#55A4DA]/5 border-r-2 border-[#55A4DA]' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {isActive ? (
-                          <div className="w-4 h-4 rounded-full border-2 border-[#55A4DA] flex items-center justify-center flex-shrink-0">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#55A4DA]" />
-                          </div>
-                        ) : isDone ? (
-                          <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                        )}
-                        <span className={`text-xs font-semibold ${isActive ? 'text-[#55A4DA]' : 'text-gray-700'}`}>
-                          {idx + 1}회차
-                        </span>
+          ) : (
+          <>
+            {/* 상단: 회차 탭 (Step 3 스타일) */}
+            <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+              <div className="flex gap-2 flex-wrap">
+                {rounds.map((r, idx) => {
+                  const s = customStoryline[r.stepIndex];
+                  const isActive = idx === activeRoundIdx;
+                  const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+                  const isDone = activeGroups.length > 0
+                    ? activeGroups.every(g => g.topic.trim().length > 0) && r.topic.trim().length > 0
+                    : r.topic.trim().length > 0;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => switchRound(idx)}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold border-2 transition-all flex items-center gap-1.5 ${
+                        isActive ? 'border-[#55A4DA] bg-[#55A4DA]/5 text-[#2E7DB5]' : 'border-gray-200 text-gray-500 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      {isDone && (
+                        <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      )}
+                      {idx + 1}회차
+                      {s && <span className="font-normal text-gray-400">{s.title}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 본문: 좌우 2분할 */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* 좌측: 실시간 미리보기 */}
+              <div className="w-1/2 flex-shrink-0 border-r border-gray-200 overflow-y-auto px-6 py-4">
+                {(() => {
+                  const r = rounds[activeRoundIdx];
+                  if (!r) return null;
+                  const activeGroups = r.customGroups.filter(g => g.types.length > 0);
+                  const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+                  const current = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">실시간 미리보기</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {tabs.map(t => (
+                          <button key={t.id} onClick={() => setPreviewTargetId(t.id)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${current === t.id ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.label}</button>
+                        ))}
                       </div>
-                      <div className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold ${color.badge} text-white flex-shrink-0`}>
-                        {s?.title}
+                      <div className="max-w-md mx-auto w-full">
+                        {renderLivePreview(current)}
                       </div>
                     </div>
-                    <p className={`text-[11px] truncate pl-6 ${isDone ? 'text-gray-500' : 'text-gray-300'}`}>
-                      {isDone
-                        ? activeGroups.length > 0
-                          ? `${activeGroups.map(g => g.topic).join(' / ')} / ${r.topic}`
-                          : r.topic
-                        : '주제 미선정'}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 오른쪽: 아코디언 패널 (독립 스크롤) */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {rounds.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                2단계에서 회차를 먼저 설계해주세요.
+                  );
+                })()}
               </div>
-            ) : (() => {
+
+              {/* 우측: 콘텐츠 편집 */}
+              <div className="w-1/2 flex-shrink-0 overflow-y-auto px-6 py-4">
+                {(() => {
               const r = rounds[activeRoundIdx];
               if (!r) return null;
               const s = customStoryline[r.stepIndex];
@@ -1561,7 +2019,7 @@ function ConfigureContent() {
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5 flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-gray-500">수신 구성</span>
                     {r.customGroups.filter(g => g.types.length > 0).map((g, gi) => (
-                      <span key={g.id} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#55A4DA]/10 text-[#2E7DB5]">
+                      <span key={g.id} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                         그룹 {gi + 1} · {g.types.join('+')} {g.leaderIds.length}명
                       </span>
                     ))}
@@ -1656,7 +2114,10 @@ function ConfigureContent() {
                 </div>
               );
             })()}
-          </div>
+              </div>
+            </div>
+          </>
+          )}
         </div>
       )}
 
@@ -2405,274 +2866,12 @@ function ConfigureContent() {
                         )}
 
                         {/* 전체 본문 탭 */}
-                        {contentTab === 'full' && (
-                          <div style={{ backgroundColor: '#F0F7FF' }} className="rounded-2xl overflow-hidden max-w-2xl mx-auto shadow-md border border-[#D6EAF8]">
-                            {/* 헤더 */}
-                            <div className="px-6 py-3.5 flex items-center justify-between bg-white border-b border-[#D6EAF8]">
-                              <div className="flex items-center gap-2">
-                                <img src="/logo-jc.png" alt="J&Company" className="h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                <span className="text-sm font-black text-gray-800 tracking-wider">J&COMPANY</span>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[11px] text-gray-400">Vol.{previewTab + 1} · {schedDate ? formatKoreanDate(schedDate) : '—'}</p>
-                                {leadershipTypes.length > 0 && <p className="text-[10px] text-gray-400 mt-0.5">{leadershipTypes.join(', ')}</p>}
-                              </div>
-                            </div>
-                            {/* 히어로 */}
-                            <div className="relative w-full h-44 overflow-hidden">
-                              {firstThumbnail ? (
-                                <>
-                                  <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                                </>
-                              ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-[#2B9EE8] to-[#1a6fad]" />
-                              )}
-                              <div className="absolute bottom-0 left-0 right-0 px-6 pb-3">
-                                <p className="text-[10px] text-white/60 mb-0.5 uppercase tracking-widest">이번 호 제목</p>
-                                <p className="text-sm font-black text-white leading-snug">{generated.subject}</p>
-                              </div>
-                            </div>
-                            <div className="px-6 py-6 space-y-5">
-                              {/* 헤드라인 + 인트로 */}
-                              <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
-                                <p className="text-base font-black text-gray-800 leading-snug mb-2">{generated.headline}</p>
-                                <p className="text-sm text-gray-600 leading-relaxed">{generated.intro}</p>
-                              </div>
-                              {/* CONTENTS 구분 */}
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1 border-t border-[#D6EAF8]" />
-                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">CONTENTS</span>
-                                <div className="flex-1 border-t border-[#D6EAF8]" />
-                              </div>
-                              {/* 섹션별 본문 */}
-                              {generated.sections.map(sec => (
-                                <div key={sec.contentId} className="bg-white rounded-2xl p-5 border border-[#D6EAF8] space-y-3">
-                                  <div className="flex items-start gap-3">
-                                    <span className="text-2xl flex-shrink-0 mt-0.5">{sec.emoji}</span>
-                                    <p className="text-sm font-black text-gray-800 leading-snug">{sec.contentTitle}</p>
-                                  </div>
-                                  <p className="text-sm text-gray-600 leading-relaxed">{sec.summary}</p>
-                                  <div className="bg-[#F0FDF4] border border-emerald-200 rounded-xl px-4 py-3">
-                                    <p className="text-[11px] font-bold text-emerald-700 mb-0.5">💡 핵심 포인트</p>
-                                    <p className="text-sm text-gray-700 leading-relaxed">{sec.keyTakeaway}</p>
-                                  </div>
-                                  {sec.youtubeUrl && (
-                                    <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                                      <iframe src={sec.youtubeUrl} className="w-full h-full" allowFullScreen title={sec.contentTitle} />
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                              {/* INTERACTION 구분 */}
-                              {generated.interactions.length > 0 && (
-                                <>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 border-t border-[#D6EAF8]" />
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">INTERACTION</span>
-                                    <div className="flex-1 border-t border-[#D6EAF8]" />
-                                  </div>
-                                  {generated.interactions.map((ia, idx) => {
-                                    if (ia.type === 'quiz') {
-                                      const c = ia.content as { question: string; options: string[]; answer: number };
-                                      return (
-                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
-                                          <p className="text-sm text-gray-700 leading-relaxed">{c.question}</p>
-                                          <div className="space-y-2">
-                                            {(c.options ?? []).map((opt, i) => (
-                                              <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700">
-                                                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />{opt}
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <button className="text-xs font-bold text-[#2B9EE8] hover:underline">정답 확인하기 →</button>
-                                        </div>
-                                      );
-                                    }
-                                    if (ia.type === 'scenario') {
-                                      const c = ia.content as { situation: string; options: { label: string; result: string }[] };
-                                      return (
-                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
-                                          <p className="text-sm text-gray-700 leading-relaxed">{c.situation}</p>
-                                          <div className="space-y-2">
-                                            {(c.options ?? []).map((opt, i) => (
-                                              <button key={i} className="w-full text-left px-4 py-2.5 bg-white rounded-xl border border-blue-100 text-sm text-gray-700 hover:bg-blue-50 transition-colors">{opt.label}</button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    if (ia.type === 'selfcheck') {
-                                      const c = ia.content as { items: string[] };
-                                      return (
-                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
-                                          <div className="space-y-2">
-                                            {(c.items ?? []).map((item, i) => (
-                                              <div key={i} className="flex items-start gap-2.5">
-                                                <div className="w-4 h-4 rounded border-2 border-blue-300 flex-shrink-0 mt-0.5 bg-white" />
-                                                <p className="text-sm text-gray-700">{item}</p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    if (ia.type === 'reflection') {
-                                      const c = ia.content as { questions: string[] };
-                                      return (
-                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
-                                          <div className="space-y-2">
-                                            {(c.questions ?? []).map((q, i) => (
-                                              <div key={i} className="bg-white rounded-xl px-4 py-3 border border-blue-100">
-                                                <p className="text-[11px] font-bold text-[#2B9EE8] mb-0.5">Q{i + 1}</p>
-                                                <p className="text-sm text-gray-700">{q}</p>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    if (ia.type === 'dodont') {
-                                      const c = ia.content as { do: string[]; dont: string[] };
-                                      return (
-                                        <div key={idx} className="bg-[#EBF5FF] rounded-2xl p-5 border border-blue-200 space-y-3">
-                                          <div className="flex items-center gap-2"><p className="text-sm font-bold text-gray-800">{ia.title}</p></div>
-                                          <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-white rounded-xl p-3 border border-emerald-200">
-                                              <p className="text-xs font-bold text-emerald-600 mb-2">Do</p>
-                                              <ul className="space-y-1.5">
-                                                {(c.do ?? []).map((item, i) => (
-                                                  <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-emerald-500 flex-shrink-0 mt-0.5">•</span>{item}</li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                            <div className="bg-white rounded-xl p-3 border border-red-200">
-                                              <p className="text-xs font-bold text-red-500 mb-2">Don't</p>
-                                              <ul className="space-y-1.5">
-                                                {(c.dont ?? []).map((item, i) => (
-                                                  <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5"><span className="text-red-400 flex-shrink-0 mt-0.5">•</span>{item}</li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })}
-                                </>
-                              )}
-                              {/* SURVEY 구분 */}
-                              {generated.surveys.length > 0 && (
-                                <>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 border-t border-[#D6EAF8]" />
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">SURVEY</span>
-                                    <div className="flex-1 border-t border-[#D6EAF8]" />
-                                  </div>
-                                  {generated.surveys.map((survey, idx) => {
-                                    if (survey.type === 'always') {
-                                      const q = survey.questions[0] as { type: 'rating'; options: string[]; followUp: string; followUpOptions: string[]; openQuestion: string };
-                                      return (
-                                        <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-4">
-                                          <p className="text-sm font-bold text-gray-800">📊 이번 뉴스레터 어떠셨나요?</p>
-                                          <div className="flex gap-2">
-                                            {(q.options ?? []).map((opt, i) => (
-                                              <button key={i} className="flex-1 flex flex-col items-center gap-1 py-2.5 bg-white rounded-xl border border-amber-200 hover:bg-amber-50 transition-colors">
-                                                <span className="text-xl">{['😐', '😊', '🤩'][i]}</span>
-                                                <span className="text-[10px] text-gray-600">{opt}</span>
-                                              </button>
-                                            ))}
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-gray-700 mb-2">{q.followUp}</p>
-                                            <div className="space-y-1.5">
-                                              {(q.followUpOptions ?? []).map((opt, i) => (
-                                                <div key={i} className="flex items-center gap-2">
-                                                  <div className="w-4 h-4 rounded border-2 border-amber-300 flex-shrink-0 bg-white" />
-                                                  <p className="text-xs text-gray-700">{opt}</p>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-gray-700 mb-1.5">{q.openQuestion}</p>
-                                            <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    if (survey.type === 'periodic') {
-                                      const questions = survey.questions as PeriodicSurveyQuestion[];
-                                      return (
-                                        <div key={idx} className="bg-[#FFFBEB] rounded-2xl p-5 border border-amber-200 space-y-5">
-                                          <p className="text-sm font-bold text-gray-800">📊 정기 만족도 조사</p>
-                                          {questions.map((q, i) => (
-                                            <div key={i}>
-                                              <p className="text-xs font-semibold text-gray-700 mb-2">Q{i + 1}. {q.question}</p>
-                                              {q.type === 'scale' && (
-                                                <div>
-                                                  <div className="flex gap-1">
-                                                    {Array.from({ length: q.scale }, (_, n) => (
-                                                      <button key={n} className="flex-1 py-1.5 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{n + 1}</button>
-                                                    ))}
-                                                  </div>
-                                                  <div className="flex justify-between mt-1">
-                                                    <span className="text-[10px] text-gray-400">매우 불만족</span>
-                                                    <span className="text-[10px] text-gray-400">매우 만족</span>
-                                                  </div>
-                                                </div>
-                                              )}
-                                              {q.type === 'multiple' && (
-                                                <div className="flex flex-wrap gap-1.5">
-                                                  {q.options.map((opt, j) => (
-                                                    <button key={j} className="px-3 py-1 text-xs bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors">{opt}</button>
-                                                  ))}
-                                                </div>
-                                              )}
-                                              {q.type === 'open' && (
-                                                <div className="w-full h-14 bg-white rounded-lg border border-amber-200 px-3 py-2 text-xs text-gray-400 flex items-start">답변을 입력해 주세요...</div>
-                                              )}
-                                            </div>
-                                          ))}
-                                          <button className="w-full py-2.5 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors">제출하기</button>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })}
-                                </>
-                              )}
-                              {/* 클로징 */}
-                              <div className="bg-white rounded-2xl p-5 border border-[#D6EAF8]">
-                                <p className="text-sm text-gray-600 leading-relaxed italic mb-2">{generated.closing}</p>
-                                <p className="text-xs text-gray-400 font-semibold">J&Company 코칭팀 드림</p>
-                              </div>
-                              {/* 마이페이지 바로가기 */}
-                              <div className="flex justify-center py-1">
-                                <button className="flex items-center gap-2 px-6 py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-2xl transition-colors shadow-sm">
-                                  내 마이페이지 바로가기
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </button>
-                              </div>
-
-                              {/* 푸터 */}
-                              <div className="flex items-center justify-between pb-1">
-                                <img src="/logo-jc.png" alt="J&Company" className="h-5 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                <div className="flex gap-3">
-                                  <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">수신거부</span>
-                                  <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">문의하기</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        {contentTab === 'full' && renderGeneratedFullBody(generated, {
+                          vol: previewTab + 1,
+                          dateLabel: schedDate ? formatKoreanDate(schedDate) : '—',
+                          leadershipLabel: leadershipTypes.join(', '),
+                          firstThumbnail,
+                        })}
                       </div>
                     );
                   })()}
