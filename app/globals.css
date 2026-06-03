@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ── Text Colors ── */
+  --color-text-primary: #323338;
+  --color-text-secondary: #676879;
+  --color-text-on-inverted: #FFFFFF;
+  --color-text-on-primary: #FFFFFF;
+  --color-text-disabled: rgba(50, 51, 56, 0.38);
+
+  /* ── Background Colors ── */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-primary-hover: rgba(103, 104, 121, 0.1);
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-inverted: #323338;
+  --color-bg-allgrey: #F6F7FB;
+  --color-bg-ui: #E7E9EF;
+  --color-bg-disabled: #ECEDF5;
+  --color-bg-surface: #ECEFF8;
+
+  /* ── Utility Colors ── */
+  --color-ui-border: #C3C6D4;
+  --color-layout-border: #D0D4E4;
+  --color-placeholder: #676879;
+  --color-icon: #676879;
+  --color-link: #3A8BC4;
+  --color-fixed-dark: #111111;
+  --color-fixed-light: #FFFFFF;
+
+  /* ── Brand ── */
+  --color-brand: #55A4DA;
+  --color-brand-hover: #3A8BC4;
+  --color-brand-light: #D1E8F5;
+
+  /* ── Legacy aliases ── */
+  --background: var(--color-bg-primary);
+  --foreground: var(--color-text-primary);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Figtree", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--color-ui-border);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

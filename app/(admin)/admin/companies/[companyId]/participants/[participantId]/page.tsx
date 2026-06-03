@@ -1,0 +1,404 @@
+'use client';
+
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useCompanyStore } from '@/store/companyStore';
+import { useParticipantStore, type LeadershipType, type DeliveryStatus } from '@/store/participantStore';
+import { useDiagnosisHistoryStore } from '@/store/diagnosisHistoryStore';
+
+
+const leadershipDesc: Record<LeadershipType, { summary: string; coaching: string }> = {
+  '코칭형':    { summary: '구성원의 잠재력을 이끌어내는 코칭 중심 리더십', coaching: '개인별 성장 목표를 함께 설정하고 정기적인 1:1 코칭 대화를 통해 강점을 극대화하세요.' },
+  '민주형':    { summary: '구성원 참여와 합의를 중시하는 민주적 리더십', coaching: '의사결정 참여 범위를 명확히 하고, 효율적 합의 구조를 설계해 빠른 실행력도 함께 갖추세요.' },
+  '서번트형':  { summary: '구성원을 먼저 섬기는 봉사 중심 리더십', coaching: '팀의 방향성과 목표를 명확히 제시하여 봉사 정신이 성과로 연결될 수 있도록 균형을 맞추세요.' },
+  '비전형':    { summary: '미래 방향을 제시하고 영감을 주는 비전 리더십', coaching: '장기 비전을 단기 실행 과제로 구체화하고, 구성원이 일상에서 비전을 체감할 수 있게 연결하세요.' },
+  '관계중심형': { summary: '신뢰와 유대감을 바탕으로 한 관계 중심 리더십', coaching: '관계 자산을 성과와 연결하고, 갈등 상황에서도 공정한 피드백을 제공하는 균형감을 키우세요.' },
+  '독재형':    { summary: '일방적 지시와 통제 중심의 리더십', coaching: '구성원의 의견을 경청하고 자율성을 부여하는 참여형 의사결정 훈련이 필요합니다.' },
+  '방관형':    { summary: '적극적 개입 없이 방치하는 리더십', coaching: '명확한 방향 제시와 피드백 루틴 수립, 구성원 성장에 대한 책임감 강화가 필요합니다.' },
+  '불통형':    { summary: '소통 단절과 정보 독점 리더십', coaching: '열린 커뮤니케이션 채널 구축과 투명한 정보 공유, 적극적 경청 스킬 훈련이 필요합니다.' },
+  '성과압박형': { summary: '결과 중심의 과도한 압박 리더십', coaching: '과정 중심의 지원과 심리적 안전감 조성, 번아웃 예방을 위한 균형 잡힌 목표 설정이 필요합니다.' },
+  '감정기복형': { summary: '감정 조절 미숙으로 인한 불안정 리더십', coaching: '감정 인식과 자기조절 역량 강화, 스트레스 상황에서의 안정적인 리더십 발휘 훈련이 필요합니다.' },
+  '완벽주의형': { summary: '과도한 완벽 기준으로 팀을 압박하는 리더십', coaching: '완벽이 아닌 적정 기준을 설정하고, 실패를 학습의 기회로 수용하는 심리적 유연성 훈련이 필요합니다.' },
+  '우유부단형': { summary: '결정을 회피하고 방향 제시가 부족한 리더십', coaching: '의사결정 프레임워크를 습득하고, 불완전한 정보 속에서도 적시에 판단을 내리는 훈련이 필요합니다.' },
+};
+
+const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: string }> = {
+  '열람':     { bg: 'bg-blue-50',    text: 'text-blue-600',    dot: 'bg-blue-400' },
+  '발송완료': { bg: 'bg-yellow-50',  text: 'text-yellow-600',  dot: 'bg-yellow-400' },
+  '미발송':   { bg: 'bg-surface-subtle',   text: 'text-text-secondary',    dot: 'bg-icon' },
+  '완료':     { bg: 'bg-emerald-50', text: 'text-emerald-600', dot: 'bg-emerald-400' },
+};
+
+// 목 뉴스레터 스텝 데이터
+const MOCK_STEPS = [
+  { step: 1, title: '자기인식: 나의 리더십 패턴', sentAt: '2026-04-21', openedAt: '2026-04-22', interactionRate: 90, completed: true },
+  { step: 2, title: '팀원의 시선: 360° 피드백 이해', sentAt: '2026-04-28', openedAt: '2026-04-29', interactionRate: 75, completed: true },
+  { step: 3, title: '갈등 관리와 심리적 안전감', sentAt: '2026-05-12', openedAt: null, interactionRate: 0, completed: false },
+  { step: 4, title: '변화를 이끄는 리더: 신뢰와 동기부여', sentAt: null, openedAt: null, interactionRate: 0, completed: false },
+  { step: 5, title: '성장 지원: 코칭형 리더십', sentAt: null, openedAt: null, interactionRate: 0, completed: false },
+];
+
+// 목 활동 로그
+const MOCK_LOGS = [
+  { date: '2026-05-07 14:32', action: '뉴스레터 열람', detail: 'Step 3 — 소통의 재발견', type: 'open', response: null },
+  { date: '2026-05-07 14:45', action: '성찰 질문 제출', detail: '"나는 팀원의 말을 얼마나 끝까지 듣는가?"', type: 'interact', response: '솔직히 말하면 팀원이 말할 때 이미 내 답을 생각하고 있을 때가 많습니다. 앞으로는 말이 끝날 때까지 기다리고, 요약해서 확인하는 습관을 들이겠습니다.' },
+  { date: '2026-05-07 14:50', action: '체크리스트 완료', detail: '경청 실천 3가지 항목 체크', type: 'interact', response: '✅ 회의 중 핸드폰 내려놓기\n✅ 팀원 발언 도중 끼어들지 않기\n☐ 발언 후 요약 확인하기' },
+  { date: '2026-05-07 15:10', action: '상시설문 완료', detail: '뉴스레터 만족도 설문 제출', type: 'survey', response: { checks: ['콘텐츠 내용이 실무에 도움이 됐다', '읽기 쉽고 구성이 명확했다', '다음 회차도 받고 싶다'], unchecked: ['분량이 적당했다'], text: '내용 자체는 좋았는데 텍스트 위주라 읽다가 중간에 집중력이 떨어졌습니다. 짧은 영상이나 인포그래픽 같은 게 중간에 있으면 더 좋을 것 같아요.' } },
+  { date: '2026-04-29 09:15', action: '뉴스레터 열람', detail: 'Step 2 — 팀원의 시선', type: 'open', response: null },
+  { date: '2026-04-29 09:28', action: '퀴즈 응답', detail: '4/5문항 정답', type: 'interact', response: '1번 ✅  2번 ✅  3번 ✅  4번 ❌  5번 ✅\n오답: 피드백 전달 시 적절한 타이밍에 관한 문항' },
+  { date: '2026-04-22 11:03', action: '뉴스레터 열람', detail: 'Step 1 — 자기인식', type: 'open', response: null },
+  { date: '2026-04-22 11:20', action: '성찰 질문 제출', detail: '"내가 가장 자주 사용하는 리더십 패턴은?"', type: 'interact', response: '저는 결과 중심으로 생각하다 보니 과정보다 성과를 우선시하는 경향이 있습니다. 팀원들이 왜 힘들어하는지 좀 더 들여다볼 필요가 있다고 느꼈습니다.' },
+];
+
+const logIcon = {
+  open:     { bg: 'bg-blue-50',    icon: 'text-blue-500' },
+  interact: { bg: 'bg-purple-50',  icon: 'text-purple-500' },
+  survey:   { bg: 'bg-surface-subtle',   icon: 'text-text-secondary' },
+};
+
+export default function ParticipantDetailPage() {
+  const params = useParams();
+  const companyId = Number(params.companyId);
+  const participantId = Number(params.participantId);
+
+  const company = useCompanyStore(s => s.companies.find(c => c.id === companyId));
+  const participant = useParticipantStore(s => s.participants.find(p => p.id === participantId));
+  const rawHistory = useDiagnosisHistoryStore(s => s.history);
+  const diagnosisHistory = useMemo(
+    () => rawHistory.filter(h => h.participantId === participantId).sort((a, b) => b.id - a.id),
+    [rawHistory, participantId],
+  );
+
+  if (!company || !participant) {
+    return (
+      <div className="flex items-center justify-center h-full text-text-secondary text-sm">
+        존재하지 않는 직책자입니다.
+      </div>
+    );
+  }
+
+  const badge = deliveryBadge[participant.deliveryStatus];
+  const leaderInfo = leadershipDesc[participant.leadershipType];
+  const progressPct = Math.round((participant.stepCurrent / participant.stepTotal) * 100);
+  const [expandedLog, setExpandedLog] = useState<number | null>(null);
+
+  // 실제 데이터에 맞게 스텝 완료 수 계산
+  const completedSteps = MOCK_STEPS.filter(s => s.completed).length;
+  const avgInteraction = MOCK_STEPS.filter(s => s.completed).reduce((acc, s) => acc + s.interactionRate, 0) / (completedSteps || 1);
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-surface-subtle">
+      {/* 상단 토퍼 */}
+      <div className="bg-surface border-b border-border-light px-8 h-[65px] flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 text-[15px] text-text-secondary font-semibold">
+          <Link href="/admin/dashboard" className="hover:text-text-primary transition-colors">리더목록</Link>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <Link href={`/admin/companies/${companyId}/participants`} className="hover:text-text-primary transition-colors">{company.name}</Link>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="text-text-primary font-bold">{participant.name}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button className="text-sm font-medium text-text-onBrand bg-brand hover:bg-brand-dark px-4 py-2 rounded-lg transition-colors">
+            정보 수정
+          </button>
+        </div>
+      </div>
+
+      {/* 본문 스크롤 영역 */}
+      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-5">
+
+        {/* ── 상단: 직책자 프로필 카드 ── */}
+        <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-6">
+          <div className="flex items-start gap-5">
+            {/* 아바타 */}
+            <div className="w-16 h-16 rounded-2xl bg-brand/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-brand text-2xl font-bold">{participant.name[0]}</span>
+            </div>
+
+            {/* 기본 정보 */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl font-bold text-text-primary">{participant.name}</h1>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${badge.bg} ${badge.text}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                  {participant.deliveryStatus}
+                </span>
+              </div>
+              <p className="text-sm text-text-secondary mt-1">{participant.department} · {participant.position}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{participant.email}</p>
+            </div>
+
+            {/* 우측 메타 */}
+            <div className="flex-shrink-0 text-right space-y-1">
+              <p className="text-xs text-text-secondary">소속 고객사</p>
+              <p className="text-sm font-semibold text-text-primary">{company.name}</p>
+              <p className="text-xs text-text-secondary mt-2">마지막 열람</p>
+              <p className="text-sm font-semibold text-text-primary">
+                {participant.lastOpenedAt ?? '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* 구분선 */}
+          <div className="border-t border-border-light my-5" />
+
+          {/* 리더십 진단 결과 + 코칭 방향 */}
+          <div className="flex gap-4 mb-5">
+            <div className="flex-1 rounded-xl px-4 py-3 flex items-end gap-4 bg-surface-subtle">
+              <div className="flex-shrink-0">
+                <p className="text-xs font-semibold text-text-secondary mb-1">리더십 유형</p>
+                <p className="text-xl font-bold text-text-primary">{participant.leadershipType}</p>
+              </div>
+              <p className="text-xs text-text-secondary leading-relaxed">{leaderInfo?.summary ?? ''}</p>
+            </div>
+            <div className="flex-1 bg-surface-subtle rounded-xl px-4 py-3">
+              <p className="text-xs font-semibold text-text-secondary mb-1">코칭 방향</p>
+              <p className="text-xs text-text-secondary leading-relaxed">{leaderInfo?.coaching ?? ''}</p>
+            </div>
+          </div>
+
+          {/* 통계 4개 */}
+          <div className="grid grid-cols-4 gap-4">
+            <StatCard
+              label="뉴스레터 진척도"
+              value={`${participant.assessmentRound}회차`}
+              suffix={`/ ${participant.stepTotal}회차`}
+              sub="최근 완료 기준"
+              color="text-text-primary"
+            />
+            <StatCard
+              label="스토리라인"
+              value={`${completedSteps}단계`}
+              suffix={`/ ${participant.stepTotal}단계`}
+              sub="완료 기준"
+              color="text-emerald-600"
+            />
+            <StatCard
+              label="평균 참여도"
+              value="68%"
+              sub="발송 기준"
+              color="text-text-primary"
+              percent={68}
+            />
+            <StatCard
+              label="평균 인터랙션"
+              value={`${Math.round(avgInteraction)}%`}
+              sub="완료 스텝 기준"
+              color="text-purple-600"
+              percent={Math.round(avgInteraction)}
+            />
+          </div>
+        </div>
+
+        {/* ── 중단: 뉴스레터 스토리라인 ── */}
+        <div className="grid grid-cols-1 gap-5">
+
+          {/* 뉴스레터 스토리라인 */}
+          <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-text-primary">뉴스레터 스토리라인</h2>
+              <div className="flex items-center gap-2">
+                <div className="w-24 bg-surface-subtle rounded-full h-1.5">
+                  <div
+                    className="bg-brand h-1.5 rounded-full transition-all"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-brand">{progressPct}%</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {MOCK_STEPS.map((s) => {
+                const isDone = s.completed;
+                const isSent = !!s.sentAt && !isDone;
+                const isPending = !s.sentAt;
+
+                return (
+                  <div
+                    key={s.step}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                      isDone ? 'bg-emerald-100' : isSent ? 'bg-amber-100' : 'bg-surface-subtle'
+                    }`}
+                  >
+                    {/* 스텝 번호 뱃지 */}
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                      isDone ? 'bg-emerald-500 text-white' :
+                      isSent ? 'bg-yellow-400 text-white' :
+                      'bg-surface-subtle text-text-secondary'
+                    }`}>
+                      {isDone ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : s.step}
+                    </div>
+
+                    {/* 제목 */}
+                    <p className={`text-xs font-medium flex-1 min-w-0 truncate ${
+                      isDone ? 'text-emerald-700' : isSent ? 'text-yellow-700' : 'text-text-secondary'
+                    }`}>
+                      {s.title}
+                    </p>
+
+                    {/* 인터랙션 */}
+                    {isDone && (
+                      <span className="text-xs font-semibold text-emerald-600 flex-shrink-0">
+                        인터랙션 {s.interactionRate}%
+                      </span>
+                    )}
+                    {isSent && (
+                      <span className="text-xs font-semibold text-yellow-600 flex-shrink-0">발송완료</span>
+                    )}
+                    {isPending && (
+                      <span className="text-xs text-icon flex-shrink-0">미발송</span>
+                    )}
+
+                    {/* 발송일 */}
+                    {s.sentAt && (
+                      <span className="text-xs text-icon flex-shrink-0 w-20 text-right">{s.sentAt}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 하단: 활동 로그 ── */}
+        <div className="bg-surface rounded-2xl border border-border-light shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-text-primary">활동 로그</h2>
+            <span className="text-xs text-text-secondary">{MOCK_LOGS.length}건</span>
+          </div>
+
+          <div className="space-y-2">
+            {MOCK_LOGS.map((log, i) => {
+              const style = logIcon[log.type as keyof typeof logIcon];
+              const isInteract = log.type === 'interact' && log.response;
+              const isSurvey = log.type === 'survey' && log.response;
+              const isExpandable = isInteract || isSurvey;
+              const isExpanded = expandedLog === i;
+              return (
+                <div key={i}
+                  className={`px-3 py-2.5 rounded-xl transition-colors ${isInteract ? 'cursor-pointer hover:bg-purple-50/60' : isSurvey ? 'cursor-pointer hover:bg-surface-subtle/60' : 'hover:bg-surface-hover'}`}
+                  onClick={() => isExpandable && setExpandedLog(isExpanded ? null : i)}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${style.bg}`}>
+                      {log.type === 'open' ? (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      ) : log.type === 'survey' ? (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      ) : (
+                        <svg className={`w-3.5 h-3.5 ${style.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-text-primary">{log.action}</p>
+                      <p className="text-xs text-text-secondary mt-0.5 truncate">{log.detail}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-icon whitespace-nowrap">{log.date}</span>
+                      {isExpandable && (
+                        <svg className={`w-3.5 h-3.5 text-icon transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  {isInteract && isExpanded && (
+                    <div className="mt-2.5 ml-10 bg-purple-50 rounded-lg px-3 py-2.5">
+                      <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">{log.response as string}</p>
+                    </div>
+                  )}
+                  {isSurvey && isExpanded && (() => {
+                    const r = log.response as { checks: string[]; unchecked: string[]; text: string };
+                    return (
+                      <div className="mt-2.5 ml-10 bg-surface-subtle rounded-lg px-3 py-3 space-y-3">
+                        <div className="space-y-1.5">
+                          {r.checks.map((item, j) => (
+                            <div key={j} className="flex items-center gap-2">
+                              <span className="text-emerald-500 text-xs font-bold">✓</span>
+                              <p className="text-xs text-text-secondary">{item}</p>
+                            </div>
+                          ))}
+                          {r.unchecked.map((item, j) => (
+                            <div key={j} className="flex items-center gap-2">
+                              <span className="text-icon text-xs font-bold">✗</span>
+                              <p className="text-xs text-text-secondary">{item}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="border-t border-border-light pt-2.5">
+                          <p className="text-[10px] font-semibold text-text-secondary mb-1">주관식 응답</p>
+                          <p className="text-xs text-text-secondary leading-relaxed">{r.text}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function SemiCircle({ percent, color }: { percent: number; color: string }) {
+  return (
+    <svg viewBox="0 0 80 44" className={`w-20 h-11 ${color}`}>
+      <path
+        d="M 4 40 A 36 36 0 0 1 76 40"
+        fill="none"
+        stroke="#e5e7eb"
+        strokeWidth="8"
+        strokeLinecap="butt"
+      />
+      <path
+        d="M 4 40 A 36 36 0 0 1 76 40"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="butt"
+        pathLength="100"
+        strokeDasharray={`${percent} 100`}
+      />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, sub, color, suffix, percent }: { label: string; value: string; sub: string; color: string; suffix?: string; percent?: number }) {
+  return (
+    <div className="bg-surface-subtle rounded-xl px-4 py-3.5">
+      <p className="text-xs text-text-secondary mb-1">{label}</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className={`text-xl font-bold ${color}`}>
+            {value}
+            {suffix && <span className="text-sm font-medium text-text-secondary ml-1">{suffix}</span>}
+          </p>
+          <p className="text-xs text-text-secondary mt-0.5">{sub}</p>
+        </div>
+        {percent !== undefined && (
+          <SemiCircle percent={percent} color={color} />
+        )}
+      </div>
+    </div>
+  );
+}
