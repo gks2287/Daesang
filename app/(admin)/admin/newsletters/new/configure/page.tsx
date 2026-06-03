@@ -266,13 +266,11 @@ function ConfigureContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, activeRoundIdx]);
 
-  // 회차 전환 시 아코디언 초기화 (모두 펼침) + 미리보기 대상 리셋
+  // 회차 전환 시 아코디언 초기화 (모두 펼침) + 미리보기 대상 일반형으로 리셋
   useEffect(() => {
     setCollapsedSections(new Set());
     setSuggestionsTarget('general');
-    const r = rounds[activeRoundIdx];
-    const firstGroup = r?.customGroups.find(g => g.types.length > 0);
-    setPreviewTargetId(firstGroup ? firstGroup.id : 'general');
+    setPreviewTargetId('general');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRoundIdx]);
 
@@ -2026,7 +2024,7 @@ function ConfigureContent() {
               const r = rounds[activeRoundIdx];
               if (!r) return null;
               const activeGroups = r.customGroups.filter(g => g.types.length > 0);
-              const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+              const tabs = [{ id: 'general', label: '일반형' }, ...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` }))];
               const currentTarget = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
               return (
                 <div className="bg-white border-b border-gray-200 px-6 py-2.5 flex-shrink-0">
@@ -2047,7 +2045,7 @@ function ConfigureContent() {
                   const r = rounds[activeRoundIdx];
                   if (!r) return null;
                   const activeGroups = r.customGroups.filter(g => g.types.length > 0);
-                  const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+                  const tabs = [{ id: 'general', label: '일반형' }, ...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` }))];
                   const current = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
                   return (
                     <div className="flex flex-col h-full">
@@ -2070,29 +2068,16 @@ function ConfigureContent() {
               if (!r) return null;
               const s = customStoryline[r.stepIndex];
               const activeGroups = r.customGroups.filter(g => g.types.length > 0);
-              const tabs = [...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` })), { id: 'general', label: '일반형' }];
+              const tabs = [{ id: 'general', label: '일반형' }, ...activeGroups.map((g, gi) => ({ id: g.id, label: `그룹 ${gi + 1}` }))];
               const currentTarget = tabs.some(t => t.id === previewTargetId) ? previewTargetId : (tabs[0]?.id ?? 'general');
               return (
-                <div className="space-y-2">
+                <div className="space-y-4">
 
-                  {/* 회차 헤더 */}
-                  <div className="pb-1">
-                    <p className="text-base font-bold text-gray-800">{activeRoundIdx + 1}회차 콘텐츠 구성</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{s?.title} · {s?.subtitle}</p>
-                  </div>
-
-                  {/* 수신 구성 요약 (Step 3에서 배분) */}
-                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-gray-500">수신 구성</span>
-                    {r.customGroups.filter(g => g.types.length > 0).map((g, gi) => (
-                      <span key={g.id} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                        그룹 {gi + 1} · {g.types.join('+')} {g.leaderIds.length}명
-                      </span>
-                    ))}
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                      일반형 {r.generalLeaderIds.length}명
-                    </span>
-                    <span className="text-[10px] text-gray-400 ml-auto">유형 배분은 이전 단계에서 변경하세요.</span>
+                  {/* 회차 헤더 (박스 밖) */}
+                  <div>
+                    <p className="text-xl font-bold text-gray-900">{activeRoundIdx + 1}회차 콘텐츠 구성</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{s?.title} · {s?.subtitle}</p>
+                    <p className="text-xs text-gray-400 mt-1">유형 배분은 이전 단계에서 변경하세요.</p>
                   </div>
 
                   {/* 맞춤형 그룹 섹션 (선택한 탭만) */}
@@ -2101,8 +2086,15 @@ function ConfigureContent() {
                     return (
                       <div key={g.id} className="bg-[#F0F7FF] rounded-xl p-6 space-y-4">
                         <div>
-                          <p className="text-lg font-semibold text-gray-900">맞춤형 그룹 {gi + 1} · {g.types.join('+')}</p>
-                          <p className="text-sm text-gray-500 mt-0.5">{g.leaderIds.length}명</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-lg font-semibold text-gray-900">맞춤형 그룹 {gi + 1}</p>
+                            <span className="text-sm text-gray-500 flex-shrink-0">{g.leaderIds.length}명</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {g.types.map(t => (
+                              <span key={t} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white border border-[#55A4DA]/30 text-[#2E7DB5]">{t}</span>
+                            ))}
+                          </div>
                         </div>
                         {renderContentSections({
                           keyPrefix: `g:${g.id}`,
@@ -2137,7 +2129,10 @@ function ConfigureContent() {
                     return (
                   <div className="bg-[#F0F7FF] rounded-xl p-6 space-y-4">
                     <div>
-                      <p className="text-lg font-semibold text-gray-900">일반형</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-lg font-semibold text-gray-900">일반형</p>
+                        <span className="text-sm text-gray-500 flex-shrink-0">{r.generalLeaderIds.length}명</span>
+                      </div>
                       {parts.length > 0 && <p className="text-sm text-gray-500 mt-0.5">{parts.join(' + ')}</p>}
                     </div>
                     {renderContentSections({
