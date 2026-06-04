@@ -589,13 +589,16 @@ export function renderNewsletterEmailPreview(generated: GeneratedNewsletter, opt
         </div>
       </div>
       {/* CTA */}
-      {onReadFull && (
-        <div className="px-6 mt-8">
+      <div className="px-6 mt-8 space-y-2.5">
+        {onReadFull && (
           <button onClick={onReadFull} className="w-full py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors">
             전체 뉴스레터 읽기 →
           </button>
-        </div>
-      )}
+        )}
+        <button className="w-full py-3 bg-white border border-[#2B9EE8] text-[#2B9EE8] hover:bg-[#2B9EE8]/5 text-sm font-semibold rounded-xl transition-colors">
+          내 마이페이지 바로가기
+        </button>
+      </div>
       {/* 푸터 */}
       <div className="px-6 py-5 mt-8 border-t border-gray-100 flex items-center justify-between">
         <span className="text-xs font-semibold text-[#6B7280]">J&Company 코칭팀</span>

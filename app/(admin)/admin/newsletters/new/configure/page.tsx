@@ -167,9 +167,11 @@ function ConfigureContent() {
   // 좌측 실시간 미리보기 본문 (generate API 결과, `${roundIdx}:${targetId}` 키)
   const [livePreviewContent, setLivePreviewContent] = useState<Record<string, GeneratedNewsletter>>({});
   const [livePreviewGenerating, setLivePreviewGenerating] = useState<Set<string>>(new Set());
+  // 백그라운드 준비 중인 대상 (주제 추천 + 콘텐츠 서칭 단계, `${roundIdx}:${targetId}`)
+  const [preparingTargets, setPreparingTargets] = useState<Set<string>>(new Set());
   const livePreviewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  // 이미 생성한 구성 시그니처 (동일 구성 재생성 방지 — 탭 전환 시 불필요한 호출 차단)
-  const livePreviewDoneRef = useRef<Set<string>>(new Set());
+  // 대상별 마지막 생성 시그니처 (key → sig). 현재 구성과 다르면 재생성 (A→B→A 되돌림도 정상 반영)
+  const livePreviewSigRef = useRef<Record<string, string>>({});
   // Step 3 → 4 진입 시 전 회차 자동 구성 로딩 오버레이
 
   // 주제 선정
@@ -217,6 +219,11 @@ function ConfigureContent() {
   // 진행 중 회차 미러 (중복 호출 방지 — 클로저 stale 없이 즉시 참조)
   const generatingRoundsRef = useRef<Set<number>>(new Set());
   const [previewContentTab, setPreviewContentTab] = useState<Record<number, 'email' | 'full'>>({});
+  // 본문 편집 모드 (미리보기 모달)
+  const [editMode, setEditMode] = useState(false);
+  const [editDraft, setEditDraft] = useState<GeneratedNewsletter | null>(null);
+  // 사용자가 본문을 직접 편집한 회차 (general) — "편집됨" 표시용 (콘텐츠 변경 시 해제)
+  const editedRoundsRef = useRef<Set<number>>(new Set());
 
   // ── draft store 동기화 ──
   useEffect(() => {
@@ -257,7 +264,8 @@ function ConfigureContent() {
 
   // Step 4: 활성 회차의 일반형 + 그룹 본문을 주제/콘텐츠 기준으로 백그라운드 자동 생성 (debounce 1초)
   // - 진입/회차전환 시 활성 회차의 전 대상 생성([수정1·4]), 탭 전환과 무관하게 미리 준비됨([수정5])
-  // - 인터랙션/만족도는 시그니처에서 제외 → 토글해도 본문 재생성 안 함([수정2·3])
+  // - 인터랙션/만족도는 시그니처에서 제외 → 토글해도 본문 재생성 안 함
+  // - 주제/콘텐츠가 바뀌면 편집 보호와 무관하게 항상 재생성([수정1·3]) · 현재 구성과 sig 다르면 재생성([수정2])
   useEffect(() => {
     if (wizardStep !== 4) return;
     const r = rounds[activeRoundIdx];
@@ -271,11 +279,17 @@ function ConfigureContent() {
     targetList.forEach(({ targetId, topic, ids }) => {
       if (!topic.trim() && ids.length === 0) return; // 주제/콘텐츠 없으면 생성하지 않음
       const sig = JSON.stringify({ roundIdx: activeRoundIdx, targetId, topic, ids });
-      if (livePreviewDoneRef.current.has(sig)) return; // 동일 구성 이미 생성됨 (캐시 유지)
       const key = `${activeRoundIdx}:${targetId}`;
+      if (livePreviewSigRef.current[key] === sig) return; // 현재 구성과 동일 — 이미 최신 (탭 전환 등)
+      // 주제/콘텐츠 변경 → 편집 본문은 폐기하고 새로 생성 (general은 모달 캐시·편집 표시도 무효화)
+      if (targetId === 'general') {
+        editedRoundsRef.current.delete(activeRoundIdx);
+        delete generatedContentRef.current[activeRoundIdx];
+        setGeneratedContent(prev => { const n = { ...prev }; delete n[activeRoundIdx]; return n; });
+      }
       if (timers[key]) clearTimeout(timers[key]);
       timers[key] = setTimeout(async () => {
-        livePreviewDoneRef.current.add(sig);
+        livePreviewSigRef.current[key] = sig;
         await generateLivePreview(activeRoundIdx, targetId);
       }, 1000);
     });
@@ -365,9 +379,44 @@ function ConfigureContent() {
   // 미리보기 모달: 회차 탭 클릭 — 해당 회차가 미생성·미진행 중이면 그때 생성
   function selectPreviewTab(idx: number) {
     setPreviewTab(idx);
+    setEditMode(false);
+    setEditDraft(null);
     if (generatedContentRef.current[idx]) return; // 이미 생성됨 (캐시 유지)
     if (generatingRoundsRef.current.has(idx)) return; // 이미 진행 중
     void handleGenerateRound(idx);
+  }
+
+  // ── 본문 편집 (미리보기 모달) ──
+  function startEdit() {
+    const gen = generatedContent[previewTab];
+    if (!gen) return;
+    setEditDraft(JSON.parse(JSON.stringify(gen)) as GeneratedNewsletter); // 작업용 깊은 복사
+    setEditMode(true);
+  }
+  function cancelEdit() {
+    setEditMode(false);
+    setEditDraft(null);
+  }
+  function saveEdit() {
+    if (!editDraft) return;
+    const idx = previewTab;
+    generatedContentRef.current = { ...generatedContentRef.current, [idx]: editDraft };
+    setGeneratedContent(prev => ({ ...prev, [idx]: editDraft }));
+    // 좌측 실시간 미리보기(일반형)에도 반영
+    setLivePreviewContent(prev => ({ ...prev, [`${idx}:general`]: editDraft }));
+    editedRoundsRef.current.add(idx); // "편집됨" 표시 (콘텐츠 변경 시 자동 해제·재생성)
+    setEditMode(false);
+    setEditDraft(null);
+  }
+  function updateEditField(field: 'subject' | 'headline' | 'intro' | 'closing', value: string) {
+    setEditDraft(prev => prev ? { ...prev, [field]: value } : prev);
+  }
+  function updateEditSection(secIdx: number, field: 'contentTitle' | 'summary' | 'keyTakeaway', value: string) {
+    setEditDraft(prev => {
+      if (!prev) return prev;
+      const sections = prev.sections.map((s, i) => i === secIdx ? { ...s, [field]: value } : s);
+      return { ...prev, sections };
+    });
   }
 
   // ── Step 4 좌측 실시간 미리보기: 그룹/일반형 단위로 generate API 호출 ──
@@ -541,13 +590,18 @@ function ConfigureContent() {
       }
       return null;
     };
-    const topics = await requestTopics();
-    const first = topics?.[0]?.title;
-    if (!first) { autoFilledRef.current.delete(key); return; }
-    if (isCustom) setGroupTopic(roundIdx, targetId, first);
-    else setRoundTopic(roundIdx, first);
-    if (isCustom) await suggestGroupContents(roundIdx, targetId, first);
-    else await suggestContentsForRound(roundIdx, first);
+    setPreparingTargets(prev => new Set([...prev, key])); // 준비 중 표시 시작
+    try {
+      const topics = await requestTopics();
+      const first = topics?.[0]?.title;
+      if (!first) { autoFilledRef.current.delete(key); return; }
+      if (isCustom) setGroupTopic(roundIdx, targetId, first);
+      else setRoundTopic(roundIdx, first);
+      if (isCustom) await suggestGroupContents(roundIdx, targetId, first);
+      else await suggestContentsForRound(roundIdx, first);
+    } finally {
+      setPreparingTargets(prev => { const s = new Set(prev); s.delete(key); return s; });
+    }
   }
 
   function setRoundTopic(roundIdx: number, topic: string) {
@@ -880,6 +934,8 @@ function ConfigureContent() {
     if (!deliveryInterval || !startDate) return;
     setPreviewTab(0);
     setPreviewOpenGroups(new Set([0]));
+    setEditMode(false);
+    setEditDraft(null);
     setPreviewOpen(true);
   }
 
@@ -1075,8 +1131,20 @@ function ConfigureContent() {
     const leadershipLabel = isCustom ? (group?.types.join(', ') ?? '') : '일반형';
     const key = `${activeRoundIdx}:${targetId}`;
     const generated = livePreviewContent[key];
+    // 백그라운드 준비 중(주제 추천·콘텐츠 서칭) 또는 본문 생성 중 여부
+    const preparing = preparingTargets.has(key) || livePreviewGenerating.has(key);
 
     if (!hasConfig) {
+      // 준비 중이면 로딩 안내, 아니면 빈 상태
+      if (preparing) {
+        return (
+          <div className="h-full min-h-[480px] rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-3 text-center">
+            <svg className="w-8 h-8 text-[#2B9EE8] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+            <p className="text-sm font-semibold text-gray-700">AI가 콘텐츠를 준비하고 있어요...</p>
+            <p className="text-xs text-gray-400">주제 추천 → 콘텐츠 선택 → 본문 생성 (약 1분 소요)</p>
+          </div>
+        );
+      }
       return (
         <div className="h-full min-h-[480px] rounded-2xl shadow-md border border-[#D6EAF8] bg-white flex flex-col items-center justify-center py-20 px-6 gap-2 text-center">
           <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -1097,7 +1165,8 @@ function ConfigureContent() {
           <div className="px-6 sm:px-8 py-10">
             <div className="rounded-2xl py-16 px-5 border border-[#E1EFFB] flex flex-col items-center justify-center gap-3 text-center" style={{ backgroundColor: '#F0F7FF' }}>
               <svg className="w-7 h-7 text-[#2B9EE8] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-              <p className="text-sm text-[#6B7280]">AI가 본문을 생성 중입니다...</p>
+              <p className="text-sm font-semibold text-gray-700">AI가 콘텐츠를 준비하고 있어요...</p>
+              <p className="text-xs text-gray-400">본문을 생성하고 있어요 (약 1분 소요)</p>
             </div>
             {renderInteractionTemplates(interactions)}
             {renderSurveyTemplates(surveys)}
@@ -1110,6 +1179,69 @@ function ConfigureContent() {
       return renderNewsletterEmailPreview(generated, { vol: activeRoundIdx + 1, dateLabel: '발송일 미정', onReadFull: () => setLivePreviewMode('full') });
     }
     return renderGeneratedFullBody(generated, { vol: activeRoundIdx + 1, dateLabel: '발송일 미정', leadershipLabel, firstThumbnail, templateInteractions: interactions, templateSurveys: surveys });
+  }
+
+  // 명시적 AI 재생성 (편집 내용 폐기 후 덮어쓰기)
+  function regenerateCurrent() {
+    editedRoundsRef.current.delete(previewTab);
+    setEditMode(false);
+    setEditDraft(null);
+    void handleGenerateRound(previewTab, true);
+  }
+
+  // ── 본문 편집 패널 (미리보기 모달) ──
+  function renderEditPanel() {
+    if (!editDraft) return null;
+    const labelCls = 'text-xs font-bold text-gray-500 mb-1.5 block';
+    const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:border-[#55A4DA] focus:outline-none focus:ring-1 focus:ring-[#55A4DA]/30 transition-colors';
+    const areaCls = inputCls + ' resize-y leading-relaxed';
+    return (
+      <div className="bg-white rounded-2xl border border-gray-200 max-w-2xl mx-auto p-6 space-y-5">
+        <div className="flex items-center gap-2 pb-1">
+          <svg className="w-4 h-4 text-[#55A4DA]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          <p className="text-sm font-bold text-gray-800">본문 편집</p>
+        </div>
+        <div>
+          <label className={labelCls}>이번 호 제목 (subject)</label>
+          <input className={inputCls} value={editDraft.subject} onChange={e => updateEditField('subject', e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>헤드라인 (headline)</label>
+          <textarea className={areaCls} rows={2} value={editDraft.headline} onChange={e => updateEditField('headline', e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>인트로 (intro)</label>
+          <textarea className={areaCls} rows={3} value={editDraft.intro} onChange={e => updateEditField('intro', e.target.value)} />
+        </div>
+        <div className="space-y-4 pt-1">
+          <p className="text-xs font-bold text-gray-500">콘텐츠 섹션</p>
+          {editDraft.sections.map((sec, i) => (
+            <div key={sec.contentId ?? i} className="rounded-xl border border-gray-100 p-4 space-y-3" style={{ backgroundColor: '#F8FAFC' }}>
+              <div>
+                <label className={labelCls}>{i + 1}. 제목</label>
+                <input className={inputCls} value={sec.contentTitle} onChange={e => updateEditSection(i, 'contentTitle', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>요약</label>
+                <textarea className={areaCls} rows={2} value={sec.summary} onChange={e => updateEditSection(i, 'summary', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>💡 핵심 포인트</label>
+                <textarea className={areaCls} rows={2} value={sec.keyTakeaway} onChange={e => updateEditSection(i, 'keyTakeaway', e.target.value)} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div>
+          <label className={labelCls}>마무리 (closing)</label>
+          <textarea className={areaCls} rows={3} value={editDraft.closing} onChange={e => updateEditField('closing', e.target.value)} />
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+          <button onClick={cancelEdit} className="px-4 py-2 text-sm font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">취소</button>
+          <button onClick={saveEdit} className="px-5 py-2 text-sm font-bold bg-[#55A4DA] hover:bg-[#3A8BC4] text-white rounded-lg transition-colors">저장</button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -2487,16 +2619,18 @@ function ConfigureContent() {
                       );
                     }
 
+                    const isEdited = editedRoundsRef.current.has(previewTab);
                     return (
                       <div className="space-y-3">
-                        {/* 서브탭 + 다시생성 */}
-                        <div className="flex items-center justify-between">
+                        {/* 서브탭 + 편집/다시생성 */}
+                        <div className="flex items-center justify-between gap-2">
                           <div className="flex gap-1">
                             {(['full', 'email'] as const).map(tab => (
                               <button
                                 key={tab}
                                 onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: tab }))}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                disabled={editMode}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 ${
                                   contentTab === tab
                                     ? 'bg-[#55A4DA] text-white'
                                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -2505,36 +2639,52 @@ function ConfigureContent() {
                                 {tab === 'full' ? '전체 본문' : '이메일 미리보기'}
                               </button>
                             ))}
+                            {isEdited && !editMode && (
+                              <span className="self-center ml-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">편집됨</span>
+                            )}
                           </div>
-                          <button
-                            onClick={() => handleGenerateRound(previewTab, true)}
-                            disabled={isGenerating}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"
-                          >
-                            <svg className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            {isGenerating ? '갱신 중' : '다시 생성'}
-                          </button>
+                          {!editMode && (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={startEdit}
+                                className="flex items-center gap-1 text-xs font-semibold text-[#55A4DA] hover:text-[#3A8BC4] transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                본문 편집
+                              </button>
+                              <button
+                                onClick={regenerateCurrent}
+                                disabled={isGenerating}
+                                title="AI로 다시 생성 (편집 내용 덮어쓰기)"
+                                className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"
+                              >
+                                <svg className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                {isGenerating ? '갱신 중' : 'AI로 다시 생성'}
+                              </button>
+                            </div>
+                          )}
                         </div>
 
-                        {/* 이메일(요약본) 미리보기 탭 — 공유 렌더러 사용 */}
-                        {contentTab === 'email' && renderNewsletterEmailPreview(generated, {
-                          vol: previewTab + 1,
-                          dateLabel: schedDate ? formatKoreanDate(schedDate) : '',
-                          onReadFull: () => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' })),
-                        })}
-
-                        {/* 전체 본문 탭 */}
-                        {/* 전체 본문: 실시간 미리보기와 동일한 렌더 함수·데이터 소스 사용 (인터랙션/만족도도 회차 선택값 기반 템플릿으로 통일) */}
-                        {contentTab === 'full' && renderGeneratedFullBody(generated, {
-                          vol: previewTab + 1,
-                          dateLabel: schedDate ? formatKoreanDate(schedDate) : '—',
-                          leadershipLabel: leadershipTypes.join(', '),
-                          firstThumbnail,
-                          templateInteractions: activeRound.interactions,
-                          templateSurveys: activeRound.surveys,
-                        })}
+                        {/* 편집 모드: 편집 패널 / 보기 모드: 미리보기 */}
+                        {editMode ? renderEditPanel() : (
+                          <>
+                            {contentTab === 'email' && renderNewsletterEmailPreview(generated, {
+                              vol: previewTab + 1,
+                              dateLabel: schedDate ? formatKoreanDate(schedDate) : '',
+                              onReadFull: () => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' })),
+                            })}
+                            {contentTab === 'full' && renderGeneratedFullBody(generated, {
+                              vol: previewTab + 1,
+                              dateLabel: schedDate ? formatKoreanDate(schedDate) : '—',
+                              leadershipLabel: leadershipTypes.join(', '),
+                              firstThumbnail,
+                              templateInteractions: activeRound.interactions,
+                              templateSurveys: activeRound.surveys,
+                            })}
+                          </>
+                        )}
                       </div>
                     );
                   })()}
