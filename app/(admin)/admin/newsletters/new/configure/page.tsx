@@ -125,6 +125,20 @@ function formatKoreanDate(date: Date): string {
   return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+// 헤드라인 줄바꿈: 쉼표 뒤에서 줄바꿈하되, 양쪽 절이 모두 5글자 초과일 때만 (whitespace-pre-line과 함께 사용)
+function formatHeadline(text: string): string {
+  const parts = text.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length < 2) return text;
+  let out = parts[0];
+  for (let i = 1; i < parts.length; i++) {
+    const prev = parts[i - 1].replace(/\s/g, '');
+    const cur = parts[i].replace(/\s/g, '');
+    const breakHere = prev.length > 5 && cur.length > 5;
+    out += ',' + (breakHere ? '\n' : ' ') + parts[i];
+  }
+  return out;
+}
+
 function calcTotalDuration(startDate: string, interval: DeliveryInterval, count: number): string {
   if (count <= 1) return '—';
   const days = DELIVERY_INTERVAL_OPTIONS.find(o => o.value === interval)?.days ?? 30;
@@ -1289,7 +1303,7 @@ function ConfigureContent() {
           <div className="text-center mb-2">
             {generated.subject && <p className="text-xs font-bold text-[#2B9EE8] tracking-wide uppercase mb-3">{generated.subject}</p>}
             <p className="text-xs text-[#6B7280] tracking-wide mb-4">Vol.{vol} · {dateLabel}{leadershipLabel ? ` · ${leadershipLabel}` : ''}</p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#2C2C2C] leading-snug">{generated.headline}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line">{formatHeadline(generated.headline)}</h1>
             <p className="text-base text-[#6B7280] leading-[1.8] text-left mt-4">{generated.intro}</p>
           </div>
 
@@ -2979,7 +2993,7 @@ function ConfigureContent() {
                             {/* 헤더 영역 */}
                             <div className="px-6 pt-6 text-center">
                               {generated.subject && <p className="text-[10px] font-bold text-[#2B9EE8] tracking-wide uppercase mb-2">{generated.subject}</p>}
-                              <h1 className="text-xl font-bold text-[#2C2C2C] leading-snug">{generated.headline}</h1>
+                              <h1 className="text-xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line">{formatHeadline(generated.headline)}</h1>
                               <p className="text-sm text-[#6B7280] leading-[1.7] text-left mt-3">{generated.intro}</p>
                             </div>
                             {/* 콘텐츠 */}
