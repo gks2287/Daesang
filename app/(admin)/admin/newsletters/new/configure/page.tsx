@@ -1077,9 +1077,9 @@ function ConfigureContent() {
   // 공통 섹션 헤더 (콘텐츠/인터랙션/만족도) — 상단 구분선 + 이모지 + 제목
   function renderSectionHeader(emoji: string, title: string) {
     return (
-      <div className="mt-10 mb-5 pt-8 border-t border-gray-100 flex items-center gap-2.5">
+      <div className="mt-12 mb-6 pt-8 border-t border-gray-100 flex items-center gap-2.5">
         <span className="text-xl">{emoji}</span>
-        <h2 className="text-lg font-bold text-[#2C2C2C]">{title}</h2>
+        <h2 className="text-lg font-semibold text-[#2C2C2C]">{title}</h2>
       </div>
     );
   }
@@ -1094,11 +1094,11 @@ function ConfigureContent() {
             if (type === 'quiz') {
               return (
                 <div key={type} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                  <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-base font-bold text-[#2C2C2C]">학습 내용 확인 퀴즈</p></div>
-                  <p className="text-[15px] text-[#6B7280] leading-relaxed">이번 회차의 핵심 내용을 가장 잘 설명한 것은 무엇일까요?</p>
+                  <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-base font-semibold text-[#2C2C2C]">학습 내용 확인 퀴즈</p></div>
+                  <p className="text-base text-[#6B7280] leading-[1.8]">이번 회차의 핵심 내용을 가장 잘 설명한 것은 무엇일까요?</p>
                   <div className="space-y-2">
                     {['선택지 A', '선택지 B', '선택지 C'].map((opt, i) => (
-                      <div key={i} className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-[15px] text-[#2C2C2C]">
+                      <div key={i} className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-base text-[#2C2C2C]">
                         <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />{opt}
                       </div>
                     ))}
@@ -1110,11 +1110,11 @@ function ConfigureContent() {
             if (type === 'scenario') {
               return (
                 <div key={type} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                  <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-base font-bold text-[#2C2C2C]">상황 시나리오</p></div>
-                  <p className="text-[15px] text-[#6B7280] leading-relaxed">다음과 같은 상황이 주어졌을 때, 당신이라면 어떻게 하시겠어요?</p>
+                  <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-base font-semibold text-[#2C2C2C]">상황 시나리오</p></div>
+                  <p className="text-base text-[#6B7280] leading-[1.8]">다음과 같은 상황이 주어졌을 때, 당신이라면 어떻게 하시겠어요?</p>
                   <div className="space-y-2">
                     {['A. 첫 번째 선택', 'B. 두 번째 선택', 'C. 세 번째 선택'].map((opt, i) => (
-                      <button key={i} className="w-full text-left px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-[15px] text-[#2C2C2C] hover:border-[#2B9EE8] transition-colors">{opt}</button>
+                      <button key={i} className="w-full text-left px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-base text-[#2C2C2C] hover:border-[#2B9EE8] transition-colors">{opt}</button>
                     ))}
                   </div>
                 </div>
@@ -1123,12 +1123,12 @@ function ConfigureContent() {
             if (type === 'selfcheck') {
               return (
                 <div key={type} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                  <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-base font-bold text-[#2C2C2C]">셀프 진단 체크리스트</p></div>
+                  <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-base font-semibold text-[#2C2C2C]">셀프 진단 체크리스트</p></div>
                   <div className="space-y-2.5">
                     {['나는 팀원의 의견을 충분히 듣는가?', '피드백을 구체적으로 전달하는가?', '약속한 사항을 끝까지 지키는가?'].map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5">
                         <div className="w-4 h-4 rounded border-2 border-[#2B9EE8]/40 flex-shrink-0 mt-1 bg-white" />
-                        <p className="text-[15px] text-[#2C2C2C]">{item}</p>
+                        <p className="text-base text-[#2C2C2C]">{item}</p>
                       </div>
                     ))}
                   </div>
@@ -1138,12 +1138,12 @@ function ConfigureContent() {
             if (type === 'reflection') {
               return (
                 <div key={type} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                  <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-base font-bold text-[#2C2C2C]">회고 질문</p></div>
+                  <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-base font-semibold text-[#2C2C2C]">회고 질문</p></div>
                   <div className="space-y-2.5">
                     {['이번 주 가장 잘한 리더십 행동은 무엇인가요?', '다음 주 바꾸고 싶은 행동 하나를 적어보세요.'].map((q, i) => (
                       <div key={i} className="bg-white rounded-xl px-4 py-3.5 border border-[#E1EFFB]">
                         <p className="text-xs font-bold text-[#2B9EE8] mb-1">Q{i + 1}</p>
-                        <p className="text-[15px] text-[#2C2C2C]">{q}</p>
+                        <p className="text-base text-[#2C2C2C]">{q}</p>
                       </div>
                     ))}
                   </div>
@@ -1153,7 +1153,7 @@ function ConfigureContent() {
             // dodont
             return (
               <div key={type} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-base font-bold text-[#2C2C2C]">Do &amp; Don&apos;t</p></div>
+                <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-base font-semibold text-[#2C2C2C]">Do &amp; Don&apos;t</p></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white rounded-xl p-4 border border-[#E1EFFB]">
                     <p className="text-sm font-bold text-emerald-600 mb-2">Do</p>
@@ -1199,7 +1199,7 @@ function ConfigureContent() {
             if (type === 'always') {
               return (
                 <div key={type} className="rounded-2xl p-6 space-y-4 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                  <p className="text-base font-bold text-[#2C2C2C]">이번 호 어떠셨나요?</p>
+                  <p className="text-base font-semibold text-[#2C2C2C]">이번 호 어떠셨나요?</p>
                   <div className="flex gap-2">
                     {['아쉬워요', '괜찮아요', '최고예요'].map((opt, i) => (
                       <button key={i} className="flex-1 flex flex-col items-center gap-1 py-3 bg-white rounded-xl border border-[#E1EFFB] hover:border-[#2B9EE8] transition-colors">
@@ -1229,7 +1229,7 @@ function ConfigureContent() {
             // periodic
             return (
               <div key={type} className="rounded-2xl p-6 space-y-5 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                <p className="text-base font-bold text-[#2C2C2C]">정기 만족도 조사</p>
+                <p className="text-base font-semibold text-[#2C2C2C]">정기 만족도 조사</p>
                 {periodicQuestions.map((item, i) => (
                   <div key={i}>
                     <p className="text-sm font-semibold text-[#2C2C2C] mb-2">Q{i + 1}. {item.q}</p>
@@ -1274,7 +1274,7 @@ function ConfigureContent() {
     return (
       <div className="bg-white max-w-2xl mx-auto rounded-2xl overflow-hidden shadow-sm border border-gray-100">
         {/* 상단 네비게이션 */}
-        <div className="px-8 py-4 flex items-center justify-between border-b border-gray-100">
+        <div className="px-6 sm:px-8 py-4 flex items-center justify-between border-b border-gray-100">
           <img src="/logo-jc.png" alt="J&Company" className="h-9 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           <div className="flex items-center gap-4">
             <span className="text-xs text-[#6B7280] hover:text-[#2B9EE8] cursor-pointer transition-colors">뉴스레터 알아보기</span>
@@ -1284,31 +1284,31 @@ function ConfigureContent() {
         </div>
 
         {/* 본문 */}
-        <div className="px-8 sm:px-10 py-10">
+        <div className="px-6 sm:px-8 py-10">
           {/* 헤더 영역 */}
           <div className="text-center mb-2">
             {generated.subject && <p className="text-xs font-bold text-[#2B9EE8] tracking-wide uppercase mb-3">{generated.subject}</p>}
             <p className="text-xs text-[#6B7280] tracking-wide mb-4">Vol.{vol} · {dateLabel}{leadershipLabel ? ` · ${leadershipLabel}` : ''}</p>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#2C2C2C] leading-snug mb-5">{generated.headline}</h1>
-            <p className="text-base text-[#6B7280] leading-relaxed text-left">{generated.intro}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#2C2C2C] leading-snug">{generated.headline}</h1>
+            <p className="text-base text-[#6B7280] leading-[1.8] text-left mt-4">{generated.intro}</p>
           </div>
 
           {/* 콘텐츠 */}
           {renderSectionHeader('📰', '이번 호에서 다룰 내용')}
-          <div className="space-y-5">
+          <div className="space-y-6">
             {generated.sections.map(sec => (
-              <div key={sec.contentId} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl flex-shrink-0 mt-0.5">{sec.emoji}</span>
-                  <p className="text-lg font-bold text-[#2C2C2C] leading-snug">{sec.contentTitle}</p>
+              <div key={sec.contentId} className="rounded-2xl p-6 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <span className="text-2xl flex-shrink-0">{sec.emoji}</span>
+                  <p className="text-base font-semibold text-[#2C2C2C] leading-snug mt-0.5">{sec.contentTitle}</p>
                 </div>
-                <p className="text-[15px] text-[#6B7280] leading-relaxed">{sec.summary}</p>
-                <div className="rounded-xl px-4 py-3.5 border border-emerald-100" style={{ backgroundColor: '#F0FDF4' }}>
-                  <p className="text-xs font-bold text-emerald-700 mb-1">💡 핵심 포인트</p>
-                  <p className="text-[15px] text-[#2C2C2C] leading-relaxed">{sec.keyTakeaway}</p>
+                <p className="text-base text-[#6B7280] leading-[1.8]">{sec.summary}</p>
+                <div className="mt-4 rounded-xl p-4 border-l-2 border border-emerald-100 border-l-emerald-300" style={{ backgroundColor: '#F0FDF4' }}>
+                  <p className="text-xs font-bold text-emerald-700 mb-1.5">💡 핵심 포인트</p>
+                  <p className="text-base text-[#2C2C2C] leading-[1.8]">{sec.keyTakeaway}</p>
                 </div>
                 {sec.youtubeUrl && (
-                  <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                  <div className="mt-4 aspect-video rounded-xl overflow-hidden bg-black">
                     <iframe src={sec.youtubeUrl} className="w-full h-full" allowFullScreen title={sec.contentTitle} />
                   </div>
                 )}
@@ -1327,11 +1327,11 @@ function ConfigureContent() {
                     const c = ia.content as { question: string; options: string[]; answer: number };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-base font-bold text-[#2C2C2C]">{ia.title}</p></div>
-                        <p className="text-[15px] text-[#6B7280] leading-relaxed">{c.question}</p>
+                        <div className="flex items-center gap-2"><span className="text-lg">🧠</span><p className="text-base font-semibold text-[#2C2C2C]">{ia.title}</p></div>
+                        <p className="text-base text-[#6B7280] leading-[1.8]">{c.question}</p>
                         <div className="space-y-2">
                           {(c.options ?? []).map((opt, i) => (
-                            <div key={i} className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-[15px] text-[#2C2C2C]">
+                            <div key={i} className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-base text-[#2C2C2C]">
                               <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />{opt}
                             </div>
                           ))}
@@ -1344,11 +1344,11 @@ function ConfigureContent() {
                     const c = ia.content as { situation: string; options: { label: string; result: string }[] };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-base font-bold text-[#2C2C2C]">{ia.title}</p></div>
-                        <p className="text-[15px] text-[#6B7280] leading-relaxed">{c.situation}</p>
+                        <div className="flex items-center gap-2"><span className="text-lg">🎭</span><p className="text-base font-semibold text-[#2C2C2C]">{ia.title}</p></div>
+                        <p className="text-base text-[#6B7280] leading-[1.8]">{c.situation}</p>
                         <div className="space-y-2">
                           {(c.options ?? []).map((opt, i) => (
-                            <button key={i} className="w-full text-left px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-[15px] text-[#2C2C2C] hover:border-[#2B9EE8] transition-colors">{opt.label}</button>
+                            <button key={i} className="w-full text-left px-4 py-3 bg-white rounded-xl border border-[#E1EFFB] text-base text-[#2C2C2C] hover:border-[#2B9EE8] transition-colors">{opt.label}</button>
                           ))}
                         </div>
                       </div>
@@ -1358,12 +1358,12 @@ function ConfigureContent() {
                     const c = ia.content as { items: string[] };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-base font-bold text-[#2C2C2C]">{ia.title}</p></div>
+                        <div className="flex items-center gap-2"><span className="text-lg">✅</span><p className="text-base font-semibold text-[#2C2C2C]">{ia.title}</p></div>
                         <div className="space-y-2.5">
                           {(c.items ?? []).map((item, i) => (
                             <div key={i} className="flex items-start gap-2.5">
                               <div className="w-4 h-4 rounded border-2 border-[#2B9EE8]/40 flex-shrink-0 mt-1 bg-white" />
-                              <p className="text-[15px] text-[#2C2C2C]">{item}</p>
+                              <p className="text-base text-[#2C2C2C]">{item}</p>
                             </div>
                           ))}
                         </div>
@@ -1374,12 +1374,12 @@ function ConfigureContent() {
                     const c = ia.content as { questions: string[] };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-base font-bold text-[#2C2C2C]">{ia.title}</p></div>
+                        <div className="flex items-center gap-2"><span className="text-lg">💭</span><p className="text-base font-semibold text-[#2C2C2C]">{ia.title}</p></div>
                         <div className="space-y-2.5">
                           {(c.questions ?? []).map((q, i) => (
                             <div key={i} className="bg-white rounded-xl px-4 py-3.5 border border-[#E1EFFB]">
                               <p className="text-xs font-bold text-[#2B9EE8] mb-1">Q{i + 1}</p>
-                              <p className="text-[15px] text-[#2C2C2C]">{q}</p>
+                              <p className="text-base text-[#2C2C2C]">{q}</p>
                             </div>
                           ))}
                         </div>
@@ -1390,7 +1390,7 @@ function ConfigureContent() {
                     const c = ia.content as { do: string[]; dont: string[] };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-3 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-base font-bold text-[#2C2C2C]">{ia.title}</p></div>
+                        <div className="flex items-center gap-2"><span className="text-lg">📋</span><p className="text-base font-semibold text-[#2C2C2C]">{ia.title}</p></div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="bg-white rounded-xl p-4 border border-[#E1EFFB]">
                             <p className="text-sm font-bold text-emerald-600 mb-2">Do</p>
@@ -1429,7 +1429,7 @@ function ConfigureContent() {
                     const q = survey.questions[0] as { type: 'rating'; options: string[]; followUp: string; followUpOptions: string[]; openQuestion: string };
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-4 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <p className="text-base font-bold text-[#2C2C2C]">이번 호 어떠셨나요?</p>
+                        <p className="text-base font-semibold text-[#2C2C2C]">이번 호 어떠셨나요?</p>
                         <div className="flex gap-2">
                           {(q.options ?? []).map((opt, i) => (
                             <button key={i} className="flex-1 flex flex-col items-center gap-1 py-3 bg-white rounded-xl border border-[#E1EFFB] hover:border-[#2B9EE8] transition-colors">
@@ -1460,7 +1460,7 @@ function ConfigureContent() {
                     const questions = survey.questions as PeriodicSurveyQuestion[];
                     return (
                       <div key={idx} className="rounded-2xl p-6 space-y-5 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
-                        <p className="text-base font-bold text-[#2C2C2C]">정기 만족도 조사</p>
+                        <p className="text-base font-semibold text-[#2C2C2C]">정기 만족도 조사</p>
                         {questions.map((q, i) => (
                           <div key={i}>
                             <p className="text-sm font-semibold text-[#2C2C2C] mb-2">Q{i + 1}. {q.question}</p>
@@ -1500,8 +1500,8 @@ function ConfigureContent() {
           )}
 
           {/* 클로징 */}
-          <div className="mt-10 pt-8 border-t border-gray-100">
-            <p className="text-[15px] text-[#6B7280] leading-relaxed italic mb-2">{generated.closing}</p>
+          <div className="mt-12 pt-8 border-t border-gray-100">
+            <p className="text-base text-[#6B7280] leading-[1.8] italic border-l-2 border-[#2B9EE8]/30 pl-4 mb-4">{generated.closing}</p>
             <p className="text-sm text-[#2C2C2C] font-semibold mb-6">J&Company 코칭팀 드림</p>
             <div className="flex justify-center">
               <button className="flex items-center gap-2 px-6 py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors">
@@ -1515,7 +1515,7 @@ function ConfigureContent() {
         </div>
 
         {/* 푸터 */}
-        <div className="px-8 py-6 border-t border-gray-100 flex items-center justify-between">
+        <div className="px-6 sm:px-8 py-6 border-t border-gray-100 flex items-center justify-between">
           <p className="text-xs text-[#6B7280] font-semibold">J&Company 코칭팀</p>
           <div className="flex gap-4">
             <span className="text-xs text-[#6B7280] hover:text-[#2B9EE8] cursor-pointer transition-colors">마이페이지</span>
@@ -1557,11 +1557,11 @@ function ConfigureContent() {
       return (
         <div className="bg-white max-w-2xl mx-auto rounded-2xl overflow-hidden shadow-sm border border-gray-100">
           {/* 상단 네비게이션 */}
-          <div className="px-8 py-4 flex items-center justify-between border-b border-gray-100">
+          <div className="px-6 sm:px-8 py-4 flex items-center justify-between border-b border-gray-100">
             <img src="/logo-jc.png" alt="J&Company" className="h-9 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
             <p className="text-xs text-[#6B7280]">Vol.{activeRoundIdx + 1}{leadershipLabel ? ` · ${leadershipLabel}` : ''}</p>
           </div>
-          <div className="px-8 sm:px-10 py-10">
+          <div className="px-6 sm:px-8 py-10">
             <div className="rounded-2xl py-16 px-5 border border-[#E1EFFB] flex flex-col items-center justify-center gap-3 text-center" style={{ backgroundColor: '#F0F7FF' }}>
               <svg className="w-7 h-7 text-[#2B9EE8] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
               <p className="text-sm text-[#6B7280]">AI가 본문을 생성 중입니다...</p>
@@ -2968,57 +2968,40 @@ function ConfigureContent() {
                           </button>
                         </div>
 
-                        {/* 이메일 미리보기 탭 */}
+                        {/* 이메일(요약본) 미리보기 탭 — 전체 본문과 같은 톤, 더 컴팩트하게 */}
                         {contentTab === 'email' && (
-                          <div style={{ backgroundColor: '#F0F7FF' }} className="rounded-2xl overflow-hidden max-w-md mx-auto shadow-md border border-[#D6EAF8]">
-                            {/* 헤더 */}
-                            <div className="px-5 py-3.5 flex items-center justify-between bg-white border-b border-[#D6EAF8]">
-                              <div className="flex items-center gap-2">
-                                <img src="/logo-jc.png" alt="J&Company" className="h-6 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                <span className="text-sm font-black text-gray-800 tracking-wider">J&COMPANY</span>
+                          <div className="bg-white max-w-md mx-auto rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                            {/* 상단 네비게이션 */}
+                            <div className="px-5 py-3.5 flex items-center justify-between border-b border-gray-100">
+                              <img src="/logo-jc.png" alt="J&Company" className="h-7 object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                              <p className="text-[11px] text-[#6B7280]">Vol.{previewTab + 1}{schedDate ? ` · ${formatKoreanDate(schedDate)}` : ''}</p>
+                            </div>
+                            {/* 헤더 영역 */}
+                            <div className="px-6 pt-6 text-center">
+                              {generated.subject && <p className="text-[10px] font-bold text-[#2B9EE8] tracking-wide uppercase mb-2">{generated.subject}</p>}
+                              <h1 className="text-xl font-bold text-[#2C2C2C] leading-snug">{generated.headline}</h1>
+                              <p className="text-sm text-[#6B7280] leading-[1.7] text-left mt-3">{generated.intro}</p>
+                            </div>
+                            {/* 콘텐츠 */}
+                            <div className="px-6 mt-8">
+                              <div className="flex items-center gap-2 mb-4 pt-6 border-t border-gray-100">
+                                <span className="text-base">📰</span>
+                                <h2 className="text-base font-semibold text-[#2C2C2C]">이번 호에서 다룰 내용</h2>
                               </div>
-                              <div className="text-right">
-                                <p className="text-[11px] text-gray-400">Vol.{previewTab + 1}</p>
-                                {schedDate && <p className="text-[10px] text-gray-400 mt-0.5">{formatKoreanDate(schedDate)}</p>}
-                              </div>
-                            </div>
-                            {/* 히어로 — 썸네일 + 헤드라인 (클릭 시 전체 본문으로) */}
-                            <div
-                              className="relative cursor-pointer"
-                              onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
-                            >
-                              {firstThumbnail ? (
-                                <div className="relative w-full h-44 overflow-hidden">
-                                  <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                                  <p className="absolute bottom-0 left-0 right-0 px-5 pb-4 text-base font-black text-white leading-snug">{generated.headline}</p>
-                                </div>
-                              ) : (
-                                <div className="relative w-full h-44 bg-gradient-to-br from-[#2B9EE8] to-[#1a6fad] flex items-end px-5 pb-4">
-                                  <p className="text-base font-black text-white leading-snug">{generated.headline}</p>
-                                </div>
-                              )}
-                            </div>
-                            {/* 인트로 */}
-                            <div className="px-5 pt-4 pb-3">
-                              <p className="text-xs text-gray-600 leading-relaxed">{generated.intro}</p>
-                            </div>
-                            <div className="mx-5 border-t border-[#D6EAF8]" />
-                            {/* 이번 호 내용 */}
-                            <div className="px-5 py-4">
-                              <p className="text-xs font-bold text-gray-700 mb-3">이번 호에서 다루는 내용 👇</p>
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-4">
                                 {generated.sections.map(sec => (
-                                  <div key={sec.contentId} className="bg-white rounded-xl p-3 border border-[#D6EAF8] space-y-1.5 flex flex-col">
-                                    <p className="text-base leading-none">{sec.emoji}</p>
-                                    <p className="text-xs font-bold text-gray-800 leading-snug line-clamp-2">{sec.contentTitle}</p>
-                                    <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 flex-1">{sec.summary}</p>
-                                    <div className="border-t border-gray-100 pt-1.5">
-                                      <p className="text-[11px] text-[#2B9EE8] font-semibold leading-snug line-clamp-1">{sec.keyTakeaway}</p>
+                                  <div key={sec.contentId} className="rounded-xl p-4 border border-[#E1EFFB]" style={{ backgroundColor: '#F0F7FF' }}>
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <span className="text-lg flex-shrink-0">{sec.emoji}</span>
+                                      <p className="text-sm font-semibold text-[#2C2C2C] leading-snug mt-0.5">{sec.contentTitle}</p>
+                                    </div>
+                                    <p className="text-sm text-[#6B7280] leading-[1.7]">{sec.summary}</p>
+                                    <div className="mt-2.5 rounded-lg p-3 border border-emerald-100 border-l-2 border-l-emerald-300" style={{ backgroundColor: '#F0FDF4' }}>
+                                      <p className="text-xs text-[#2C2C2C] leading-[1.6]"><span className="font-bold text-emerald-700">💡 핵심 포인트 · </span>{sec.keyTakeaway}</p>
                                     </div>
                                     <button
                                       onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
-                                      className="text-[10px] text-[#2B9EE8] font-bold text-left"
+                                      className="mt-2 text-xs text-[#2B9EE8] font-bold"
                                     >
                                       자세히 →
                                     </button>
@@ -3026,23 +3009,21 @@ function ConfigureContent() {
                                 ))}
                               </div>
                             </div>
-                            <div className="mx-5 border-t border-[#D6EAF8]" />
                             {/* CTA */}
-                            <div className="px-5 py-4">
+                            <div className="px-6 mt-8">
                               <button
                                 onClick={() => setPreviewContentTab(prev => ({ ...prev, [previewTab]: 'full' }))}
-                                className="w-full py-2.5 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                                className="w-full py-3 bg-[#2B9EE8] hover:bg-[#1a8ad4] text-white text-sm font-semibold rounded-xl transition-colors"
                               >
-                                ✨ 전체 뉴스레터 읽기 →
+                                전체 뉴스레터 읽기 →
                               </button>
                             </div>
-                            <div className="mx-5 border-t border-[#D6EAF8]" />
                             {/* 푸터 */}
-                            <div className="px-5 py-3 flex items-center justify-between">
-                              <span className="text-[11px] font-semibold text-gray-600">J&Company 코칭팀</span>
-                              <div className="flex gap-3">
-                                <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">수신거부</span>
-                                <span className="text-[10px] text-gray-400 cursor-pointer hover:underline">문의하기</span>
+                            <div className="px-6 py-5 mt-8 border-t border-gray-100 flex items-center justify-between">
+                              <span className="text-xs font-semibold text-[#6B7280]">J&Company 코칭팀</span>
+                              <div className="flex gap-4">
+                                <span className="text-xs text-[#6B7280] hover:text-[#2B9EE8] cursor-pointer transition-colors">마이페이지</span>
+                                <span className="text-xs text-[#6B7280] hover:text-[#2B9EE8] cursor-pointer transition-colors">문의하기</span>
                               </div>
                             </div>
                           </div>
