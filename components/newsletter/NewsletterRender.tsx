@@ -6,12 +6,18 @@ import { useState } from 'react';
 export type GeneratedNewsletterSection = {
   contentTitle: string;
   contentId: string;
+  subtitle?: string;      // 제목 아래 부제
   summary?: string;       // (구버전 호환) 핵심 요약
-  intro?: string;         // 도입 단락
-  mainBody?: string;      // 본문 핵심 내용
-  examples?: string;      // 구체적 사례/데이터
+  intro?: string;         // 공감 도입 단락
+  body?: string[];        // 본문 단락들
+  quote?: string;         // 강조 인용구
+  dataStat?: { value: string; description: string }; // 데이터 박스
+  caseStudy?: string;     // 실제 사례 박스
+  mainBody?: string;      // (구버전 호환)
+  examples?: string;      // (구버전 호환)
   keyTakeaway: string;
   actionPlan?: string[];  // 실천 가능한 행동 2~3개
+  thumbnail?: string;     // 콘텐츠 썸네일
   emoji: string;
   youtubeUrl?: string;
 };
@@ -314,43 +320,84 @@ export function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: Fu
         </div>
 
         {/* 콘텐츠 */}
-        {renderSectionHeader('📰', '이번 호에서 다룰 내용')}
-        <div className="space-y-6">
-          {generated.sections.map(sec => {
-            // 도입 → 본문 → 사례 흐름. 새 필드가 없으면 summary로 폴백
-            const bodyParas = [sec.intro, sec.mainBody, sec.examples].filter((p): p is string => !!p && p.trim().length > 0);
+        {renderSectionHeader('📖', '오늘의 이야기')}
+        <div>
+          {generated.sections.map((sec, idx) => {
+            // 본문 단락: body 우선, 없으면 구버전 필드로 폴백
+            const bodyParas = (sec.body && sec.body.length > 0)
+              ? sec.body
+              : [sec.mainBody, sec.examples].filter((p): p is string => !!p && p.trim().length > 0);
             const paras = bodyParas.length > 0 ? bodyParas : (sec.summary ? [sec.summary] : []);
             return (
-              <div key={sec.contentId} className="rounded-2xl p-6 border border-gray-100" style={{ backgroundColor: '#F9FAFB' }}>
-                {/* 카테고리 라벨 */}
+              <div key={sec.contentId}>
+                {/* 콘텐츠 구분선 */}
+                {idx > 0 && (
+                  <div className="my-14 flex items-center justify-center">
+                    <span className="text-gray-300 text-sm tracking-[0.5em]">• • •</span>
+                  </div>
+                )}
+                {/* 카테고리 라벨 + 제목 + 부제 */}
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-[#2B9EE8] bg-[#EAF4FC] px-2.5 py-1 rounded-full mb-3">📌 리더십 인사이트</span>
-                <div className="flex items-start gap-3 mb-3">
-                  <span className="text-2xl flex-shrink-0">{sec.emoji}</span>
-                  <p className="text-lg font-bold text-[#2C2C2C] leading-snug mt-0.5 border-l-4 border-[#2B9EE8] pl-3">{sec.contentTitle}</p>
+                <div className="border-l-4 border-[#2B9EE8] pl-4 mb-2">
+                  <p className="text-2xl font-bold text-[#2C2C2C] leading-snug">{sec.emoji} {sec.contentTitle}</p>
+                  {sec.subtitle && <p className="text-sm text-[#6B7280] mt-1">{sec.subtitle}</p>}
                 </div>
-                <div className="space-y-3">
-                  {paras.map((p, i) => (
-                    <p key={i} className="text-base text-[#4B5563] leading-[1.8]">{p}</p>
-                  ))}
-                </div>
+                {/* 큰 썸네일 (16:9) — 있을 때만 표시 */}
+                {sec.thumbnail && (
+                  <div className="my-5 aspect-video w-full rounded-2xl overflow-hidden border border-gray-100">
+                    <img src={sec.thumbnail} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                {/* 도입 */}
+                {sec.intro && <p className={`text-base text-[#4B5563] leading-[1.8] mb-4 ${sec.thumbnail ? '' : 'mt-5'}`}>{sec.intro}</p>}
+                {/* 본문1 */}
+                {paras[0] && <p className="text-base text-[#4B5563] leading-[1.8] mb-4">{paras[0]}</p>}
+                {/* 인용구 박스 */}
+                {sec.quote && (
+                  <blockquote className="my-6 border-l-4 border-[#2B9EE8] pl-5 py-1">
+                    <p className="text-xl italic font-medium text-[#2C2C2C] leading-relaxed">{sec.quote}</p>
+                  </blockquote>
+                )}
+                {/* 본문2 */}
+                {paras[1] && <p className="text-base text-[#4B5563] leading-[1.8] mb-4">{paras[1]}</p>}
+                {/* 데이터 박스 */}
+                {sec.dataStat && (sec.dataStat.value || sec.dataStat.description) && (
+                  <div className="my-6 rounded-xl p-6" style={{ backgroundColor: '#F0F7FF' }}>
+                    <p className="text-3xl font-black text-[#2B9EE8] leading-tight">📊 {sec.dataStat.value}</p>
+                    <p className="text-base text-[#4B5563] leading-[1.7] mt-2">{sec.dataStat.description}</p>
+                  </div>
+                )}
+                {/* 본문3 */}
+                {paras[2] && <p className="text-base text-[#4B5563] leading-[1.8] mb-4">{paras[2]}</p>}
+                {/* 사례 박스 */}
+                {sec.caseStudy && (
+                  <div className="my-6 rounded-xl p-5 border-l-4 border-gray-300" style={{ backgroundColor: '#F9FAFB' }}>
+                    <p className="text-xs font-bold text-gray-500 mb-1.5">💼 실제 사례</p>
+                    <p className="text-sm text-[#4B5563] leading-[1.8]">{sec.caseStudy}</p>
+                  </div>
+                )}
+                {/* 나머지 본문 단락 */}
+                {paras.slice(3).map((p, i) => (
+                  <p key={i} className="text-base text-[#4B5563] leading-[1.8] mb-4">{p}</p>
+                ))}
                 {/* 핵심 포인트 */}
-                <div className="mt-4 rounded-xl p-4 border-l-2 border border-emerald-100 border-l-emerald-300" style={{ backgroundColor: '#F0FDF4' }}>
+                <div className="mt-5 rounded-xl p-4 border-l-4 border border-emerald-100 border-l-emerald-400" style={{ backgroundColor: '#F0FDF4' }}>
                   <p className="text-xs font-bold text-emerald-700 mb-1.5">💡 핵심 포인트</p>
-                  <p className="text-base text-[#2C2C2C] leading-[1.8]">{sec.keyTakeaway}</p>
+                  <p className="text-base font-semibold text-[#2C2C2C] leading-[1.8]">{sec.keyTakeaway}</p>
                 </div>
-                {/* Action Plan */}
+                {/* Action Plan — 체크박스 형태 */}
                 {sec.actionPlan && sec.actionPlan.length > 0 && (
-                  <div className="mt-4 rounded-lg p-6 border border-[#E1EFFB] border-l-4 border-l-[#2B9EE8]" style={{ backgroundColor: '#F0F7FF' }}>
+                  <div className="mt-4 rounded-xl p-6 border border-[#E1EFFB] border-l-4 border-l-[#2B9EE8]" style={{ backgroundColor: '#F0F7FF' }}>
                     <p className="text-lg font-semibold text-[#2C2C2C]">✅ Action Plan</p>
                     <p className="text-xs text-[#6B7280] mt-0.5 mb-3">이번 호 핵심을 실천으로 옮겨보세요</p>
-                    <ol className="space-y-3">
+                    <ul className="space-y-3">
                       {sec.actionPlan.map((act, i) => (
                         <li key={i} className="flex items-start gap-2.5">
-                          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#2B9EE8] text-white text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                          <span className="flex-shrink-0 w-5 h-5 rounded-md border-2 border-[#2B9EE8] bg-white mt-0.5" />
                           <p className="text-base text-[#2C2C2C] leading-[1.7]">{act}</p>
                         </li>
                       ))}
-                    </ol>
+                    </ul>
                   </div>
                 )}
                 {sec.youtubeUrl && (
@@ -598,28 +645,19 @@ export function renderNewsletterEmailPreview(generated: GeneratedNewsletter, opt
   );
   return (
     <div className="bg-white max-w-md mx-auto rounded-2xl overflow-hidden shadow-sm border border-gray-100 break-keep break-words">
-      {/* 상단 키컬러 헤더 밴드 — 로고 크게 + 발행 정보 */}
-      <div className="px-6 py-7 text-center" style={{ background: 'linear-gradient(135deg,#2B9EE8,#1a6fad)' }}>
-        <span className="inline-flex items-center justify-center bg-white rounded-xl px-4 py-2.5 shadow-sm">
-          <img src="/logo-jc.png" alt="J&Company" className="h-7 object-contain" onError={e => { const t = e.target as HTMLImageElement; t.outerHTML = '<span class="text-sm font-black text-[#2B9EE8] tracking-wider">J&COMPANY</span>'; }} />
-        </span>
-        <p className="text-[11px] text-white/80 mt-3">{dateLabel || `Vol.${vol}`}</p>
+      {/* 상단 헤더 — 흰 배경에 로고 크게 + 발행 정보 (작게) */}
+      <div className="px-6 pt-8 pb-2 text-center">
+        <img src="/logo-jc.png" alt="J&Company" className="h-16 object-contain mx-auto" onError={e => { const t = e.target as HTMLImageElement; t.outerHTML = '<span class="text-xl font-black text-[#2B9EE8] tracking-wider">J&COMPANY</span>'; }} />
+        <p className="text-[11px] text-[#9CA3AF] mt-2">Vol.{vol}{dateLabel ? ` · ${dateLabel}` : ''}</p>
       </div>
-      {/* 큰 썸네일 (16:9) — 없으면 키컬러 그라데이션 + 카테고리 아이콘 */}
-      <div className="px-6 pt-5">
-        <div className="aspect-video w-full rounded-2xl overflow-hidden relative">
-          {firstThumbnail ? (
-            <>
-              <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
-            </>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#2B9EE8,#1a6fad)' }}>
-              <span className="text-4xl">📌</span>
-            </div>
-          )}
+      {/* 큰 썸네일 (16:9) — 있을 때만 표시 */}
+      {firstThumbnail && (
+        <div className="px-6 pt-4">
+          <div className="aspect-video w-full rounded-2xl overflow-hidden border border-gray-100">
+            <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
+          </div>
         </div>
-      </div>
+      )}
       {/* 카테고리 라벨 + 헤드라인 + 인트로 + 상단 CTA */}
       <div className="px-6 pt-5 text-center">
         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2B9EE8] bg-[#EAF4FC] px-2.5 py-1 rounded-full mb-3">📌 리더십 인사이트</span>
@@ -640,7 +678,7 @@ export function renderNewsletterEmailPreview(generated: GeneratedNewsletter, opt
             <div key={sec.contentId} className="rounded-xl p-4 border border-gray-100" style={{ backgroundColor: '#F9FAFB' }}>
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2B9EE8] bg-[#EAF4FC] px-2 py-0.5 rounded-full mb-2">📌 리더십 인사이트</span>
               <p className="text-sm font-bold text-[#2C2C2C] leading-snug">{sec.emoji} {sec.contentTitle}</p>
-              <p className="text-sm text-[#6B7280] leading-[1.6] mt-1 line-clamp-2">{sec.summary ?? sec.mainBody ?? sec.intro ?? ''}</p>
+              <p className="text-sm text-[#6B7280] leading-[1.6] mt-1 line-clamp-2">{sec.summary ?? sec.intro ?? sec.body?.[0] ?? sec.mainBody ?? ''}</p>
               {onReadFull && (
                 <button onClick={onReadFull} className="mt-2 text-xs text-[#2B9EE8] font-bold">자세히 보기 →</button>
               )}

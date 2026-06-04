@@ -5,12 +5,18 @@ import { callClaude } from '@/lib/api/claude';
 type GeneratedSection = {
   contentTitle: string;
   contentId: string;
+  subtitle?: string;      // 제목 아래 부제 한 줄
   summary?: string;       // (구버전 호환) 핵심 요약
-  intro?: string;         // 도입 단락
-  mainBody?: string;      // 본문 핵심 내용
-  examples?: string;      // 구체적 사례/데이터
+  intro?: string;         // 공감 도입 단락
+  body?: string[];        // 본문 단락들 (3~5개)
+  quote?: string;         // 강조 인용구
+  dataStat?: { value: string; description: string }; // 데이터 박스
+  caseStudy?: string;     // 실제 사례 박스
+  mainBody?: string;      // (구버전 호환)
+  examples?: string;      // (구버전 호환)
   keyTakeaway: string;
   actionPlan?: string[];  // 실천 가능한 행동 2~3개
+  thumbnail?: string;     // 콘텐츠 썸네일 (서버 생성 X, 클라이언트에서 매핑)
   emoji: string;
   youtubeUrl?: string;
 };
@@ -141,10 +147,14 @@ ${contentSummary}
 - 리더(독자)에게 직접 말 거는 2인칭 톤 ("여러분", "당신")
 - 이모지 적절히 활용 (과하지 않게)
 - sections는 콘텐츠 수만큼 생성 (콘텐츠 없으면 1개, 주제 기반 작성)
-- 각 섹션은 흐름: 도입(intro) → 본문(mainBody) → 구체적 사례/데이터(examples) → 핵심 포인트(keyTakeaway) → Action Plan(actionPlan)
-- intro: 흥미를 끄는 도입 1~2문장
-- mainBody: 콘텐츠 본문 기반 핵심 내용 2~4문장
-- examples: 구체적 사례·수치·데이터 1~2문장
+- 각 섹션을 풍부하고 다채롭게 작성 (섹션당 1500~2000자, 단락 5~7개). 단조롭지 않게 흐름 다양화
+- 흐름: 도입(intro) → 본문 → 인용구(quote) → 본문 → 데이터(dataStat) → 본문 → 사례(caseStudy) → 본문(적용) → 핵심 포인트(keyTakeaway) → Action Plan(actionPlan)
+- subtitle: 제목 아래 부제 한 줄
+- intro: 공감 가는 상황이나 질문으로 여는 도입 1~2문장
+- body: 본문 단락 배열 (3~5개, 각 2~4문장). 콘텐츠 본문을 풍부하게 풀어쓰기
+- quote: 강조하고 싶은 핵심 메시지 한 문장 (따옴표 없이, 임팩트 있게)
+- dataStat: { value: 핵심 수치/통계 (예 "78% vs 32%"), description: 그 수치의 의미 1~2문장 }
+- caseStudy: 실제 같은 사례 2~3문장 ("A 회사의 김 팀장은...")
 - keyTakeaway: 한 줄 핵심 교훈 (이모지 포함)
 - actionPlan: 실천 가능한 구체적 행동 2~3개 (배열). 작성 원칙:
   · 추상적 조언이 아닌 구체적 행동, "~해보세요"/"~를 시도해보세요" 형태
@@ -166,11 +176,14 @@ ${interactionSchema}` : ''}
     {
       "contentTitle": "콘텐츠 제목",
       "contentId": "콘텐츠 id",
-      "intro": "흥미를 끄는 도입 1~2문장",
-      "mainBody": "핵심 내용 2~4문장",
-      "examples": "구체적 사례/데이터 1~2문장",
+      "subtitle": "제목 아래 부제 한 줄",
+      "intro": "공감 가는 상황/질문으로 여는 도입 1~2문장",
+      "body": ["본문 단락1 (2~4문장)", "본문 단락2", "본문 단락3 (적용/마무리)"],
+      "quote": "강조 인용구 한 문장",
+      "dataStat": { "value": "78% vs 32%", "description": "수치의 의미 1~2문장" },
+      "caseStudy": "실제 사례 2~3문장",
       "keyTakeaway": "한 줄 핵심 교훈 (이모지 포함)",
-      "actionPlan": ["오늘 당장 할 수 있는 구체적 행동", "이번 주에 시도해볼 행동", "지속적으로 적용할 행동"],
+      "actionPlan": ["오늘 당장 할 수 있는 구체적 행동", "이번 주에 시도해볼 행동", "한 달 동안 지속할 행동"],
       "emoji": "섹션 대표 이모지 1개"
     }
   ],

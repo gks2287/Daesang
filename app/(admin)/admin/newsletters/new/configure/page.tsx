@@ -347,7 +347,7 @@ function ConfigureContent() {
         }),
       });
       if (!res.ok) throw new Error('생성 실패');
-      const data: GeneratedNewsletter = await res.json();
+      const data = attachSectionThumbnails(await res.json() as GeneratedNewsletter, round.contents);
       generatedContentRef.current = { ...generatedContentRef.current, [roundIdx]: data };
       setGeneratedContent(prev => ({ ...prev, [roundIdx]: data }));
     } catch (e) {
@@ -428,6 +428,17 @@ function ConfigureContent() {
     });
   }
 
+  // 생성 결과 섹션에 콘텐츠 썸네일 매핑 (contentId 매칭)
+  function attachSectionThumbnails(data: GeneratedNewsletter, contents: ContentPoolItem[]): GeneratedNewsletter {
+    return {
+      ...data,
+      sections: data.sections.map(s => ({
+        ...s,
+        thumbnail: s.thumbnail ?? contents.find(c => c.id === s.contentId)?.thumbnail,
+      })),
+    };
+  }
+
   // ── Step 4 좌측 실시간 미리보기: 그룹/일반형 단위로 generate API 호출 ──
   async function generateLivePreview(roundIdx: number, targetId: string) {
     const r = rounds[roundIdx];
@@ -460,7 +471,7 @@ function ConfigureContent() {
         }),
       });
       if (!res.ok) throw new Error('생성 실패');
-      const data: GeneratedNewsletter = await res.json();
+      const data = attachSectionThumbnails(await res.json() as GeneratedNewsletter, contents);
       setLivePreviewContent(prev => ({ ...prev, [key]: data }));
     } catch (e) {
       console.error('미리보기 생성 오류:', e);
