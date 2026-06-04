@@ -520,13 +520,27 @@ function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isComp
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {isOpen && visibleTypes.map(t => (
+      {isOpen && (isPositive ? (() => {
+        // 긍정 리더: 세부 유형(코칭형/민주형 등) 없이 회차 번호 기준 통합 표시
+        const seen = new Set<number>();
+        const mergedRounds: RoundData[] = [];
+        visibleTypes.forEach(t => t.visibleRounds.forEach(r => {
+          if (!seen.has(r.round)) { seen.add(r.round); mergedRounds.push(r); }
+        }));
+        mergedRounds.sort((a, b) => a.round - b.round);
+        return mergedRounds.map(round => (
+          <RoundRow key={round.id} round={round} companyName={companyName} polarity={group.polarity}
+            typeName="긍정 리더" count={group.totalCount} isCompleteTab={isCompleteTab}
+            isSelected={selectedIds.has(`긍정 리더-${round.round}`)} onSelect={onSelectRound}
+            onPreview={onPreview} />
+        ));
+      })() : visibleTypes.map(t => (
         <TypeRow key={t.typeName} typeData={t} visibleRounds={t.visibleRounds}
           companyId={companyId} companyName={companyName} polarity={group.polarity}
           openKeys={openKeys} onToggle={onToggle} isCompleteTab={isCompleteTab}
           selectedIds={selectedIds} onSelectRound={onSelectRound}
           onPreview={onPreview} />
-      ))}
+      )))}
     </div>
   );
 }
@@ -560,13 +574,25 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
   // 회차번호 → 해당 회차의 모든 "유형명-회차번호" selectionId 목록
   const roundToSelectionIds = useMemo(() => {
     const map = new Map<number, string[]>();
-    company.groups.forEach(g => g.types.forEach(t => {
-      t.rounds.filter(r => r.status === 'completed').forEach(r => {
-        const arr = map.get(r.round) ?? [];
-        arr.push(`${t.typeName}-${r.round}`);
-        map.set(r.round, arr);
-      });
-    }));
+    company.groups.forEach(g => {
+      if (g.polarity === 'positive') {
+        // 긍정 리더는 회차 번호 기준 통합 selectionId 사용 (TypeRow 없이 렌더)
+        const seen = new Set<number>();
+        g.types.forEach(t => t.rounds.filter(r => r.status === 'completed').forEach(r => {
+          if (seen.has(r.round)) return;
+          seen.add(r.round);
+          const arr = map.get(r.round) ?? [];
+          arr.push(`긍정 리더-${r.round}`);
+          map.set(r.round, arr);
+        }));
+      } else {
+        g.types.forEach(t => t.rounds.filter(r => r.status === 'completed').forEach(r => {
+          const arr = map.get(r.round) ?? [];
+          arr.push(`${t.typeName}-${r.round}`);
+          map.set(r.round, arr);
+        }));
+      }
+    });
     return map;
   }, [company.groups]);
 
