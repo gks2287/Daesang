@@ -203,7 +203,6 @@ function ConfigureContent() {
   // 이미 생성한 구성 시그니처 (동일 구성 재생성 방지 — 탭 전환 시 불필요한 호출 차단)
   const livePreviewDoneRef = useRef<Set<string>>(new Set());
   // Step 3 → 4 진입 시 전 회차 자동 구성 로딩 오버레이
-  const [autoComposing, setAutoComposing] = useState(false);
 
   // 주제 선정
   const [suggestions, setSuggestions] = useState<TopicSuggestion[]>(configDraft.suggestions);
@@ -247,6 +246,8 @@ function ConfigureContent() {
   const [generatingRounds, setGeneratingRounds] = useState<Set<number>>(new Set());
   // 최신 생성 결과 미러 (사전 생성 루프에서 stale closure 없이 참조)
   const generatedContentRef = useRef<Record<number, GeneratedNewsletter>>({});
+  // 진행 중 회차 미러 (중복 호출 방지 — 클로저 stale 없이 즉시 참조)
+  const generatingRoundsRef = useRef<Set<number>>(new Set());
   const [previewContentTab, setPreviewContentTab] = useState<Record<number, 'email' | 'full'>>({});
 
   // ── draft store 동기화 ──
@@ -343,9 +344,11 @@ function ConfigureContent() {
     });
   }
 
-  async function handleGenerateRound(roundIdx: number) {
+  async function handleGenerateRound(roundIdx: number, force = false) {
     const round = rounds[roundIdx];
     if (!round) return;
+    if (!force && generatingRoundsRef.current.has(roundIdx)) return; // 이미 진행 중 — 중복 호출 방지
+    generatingRoundsRef.current.add(roundIdx);
     setGeneratingRounds(prev => new Set([...prev, roundIdx]));
     try {
       const res = await fetch('/api/newsletter/generate', {
@@ -371,6 +374,7 @@ function ConfigureContent() {
     } catch (e) {
       console.error('뉴스레터 생성 오류:', e);
     } finally {
+      generatingRoundsRef.current.delete(roundIdx);
       setGeneratingRounds(prev => {
         const s = new Set(prev);
         s.delete(roundIdx);
@@ -379,7 +383,7 @@ function ConfigureContent() {
     }
   }
 
-  // 모달 진입 시: 실시간 미리보기(일반형) 결과 재활용 후, 미생성 회차를 1회차부터 순차 백그라운드 생성
+  // 모달 진입 시: 실시간 미리보기(일반형) 결과 재활용. 실제 생성은 현재 회차(1회차)만, 나머지는 탭 클릭 시
   async function runPreviewPregen() {
     const seed: Record<number, GeneratedNewsletter> = {};
     rounds.forEach((_, idx) => {
@@ -390,10 +394,18 @@ function ConfigureContent() {
       generatedContentRef.current = { ...generatedContentRef.current, ...seed };
       setGeneratedContent(prev => ({ ...seed, ...prev }));
     }
-    for (let idx = 0; idx < rounds.length; idx++) {
-      if (generatedContentRef.current[idx]) continue; // 재활용/기존 생성 완료분은 건너뜀
-      await handleGenerateRound(idx);
+    // 현재 회차만 생성 (재활용/기존 생성 완료분은 건너뜀)
+    if (!generatedContentRef.current[previewTab]) {
+      await handleGenerateRound(previewTab);
     }
+  }
+
+  // 미리보기 모달: 회차 탭 클릭 — 해당 회차가 미생성·미진행 중이면 그때 생성
+  function selectPreviewTab(idx: number) {
+    setPreviewTab(idx);
+    if (generatedContentRef.current[idx]) return; // 이미 생성됨 (캐시 유지)
+    if (generatingRoundsRef.current.has(idx)) return; // 이미 진행 중
+    void handleGenerateRound(idx);
   }
 
   // ── Step 4 좌측 실시간 미리보기: 그룹/일반형 단위로 generate API 호출 ──
@@ -794,70 +806,11 @@ function ConfigureContent() {
       setRounds(nextRounds);
       setActiveRoundIdx(0);
       setSuggestions([]);
-      // 전 회차 × 전 대상 자동 구성 후 Step 4 진입 (로딩 오버레이 표시)
-      setAutoComposing(true);
-      void (async () => {
-        try {
-          const composed = await composeAllRounds(nextRounds);
-          setRounds(composed);
-        } finally {
-          setAutoComposing(false);
-          setWizardStep(4);
-        }
-      })();
+      // 현재 활성 회차(0)만 자동 구성 — Step 4 진입 effect가 활성 회차의 그룹/일반형을 채움
+      setWizardStep(4);
       return;
     }
     setWizardStep(prev => (prev + 1) as WizardStep);
-  }
-
-  // Step 3 → 4: 전 회차 × 전 대상 자동 구성 (주제 추천+첫 주제 선택, 콘텐츠 서칭 후 1~2개 선택)
-  async function composeAllRounds(base: Round[]): Promise<Round[]> {
-    const company = targetCompanies[0]?.name ?? '';
-    const fetchFirstTopic = async (types: string[], stepIdx: number, roundIdx: number, isCustom: boolean): Promise<string> => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const res = await fetch('/api/topics/suggest', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leadershipTypes: types, companyName: company, kind: isCustom ? '맞춤형' : '일반형', stepTitle: customStoryline[stepIdx]?.title ?? '', roundIndex: roundIdx + 1 }),
-          });
-          if (res.ok) { const d = await res.json() as { topics: TopicSuggestion[] }; if (d.topics?.length) return d.topics[0].title; }
-        } catch { /* 재시도 */ }
-      }
-      return '';
-    };
-    const fetchContents = async (topic: string, leadershipType: string, stepIdx: number): Promise<ContentPoolItem[]> => {
-      try {
-        const res = await fetch('/api/contents/suggest', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic, leadershipType, storyStage: customStoryline[stepIdx]?.title ?? '', existingIds: [] }),
-        });
-        if (!res.ok) return [];
-        const d = await res.json() as { contents: ContentPoolItem[] };
-        return d.contents ?? [];
-      } catch { return []; }
-    };
-    const result = base.map(r => ({ ...r, customGroups: r.customGroups.map(g => ({ ...g })) }));
-    for (let ri = 0; ri < result.length; ri++) {
-      const r = result[ri];
-      for (const g of r.customGroups) {
-        if (g.types.length === 0) continue;
-        if (!g.topic.trim()) {
-          const t = await fetchFirstTopic(g.types, r.stepIndex, ri, true);
-          if (t) g.topic = t;
-        }
-        if (g.topic.trim() && g.contents.length === 0) {
-          g.contents = (await fetchContents(g.topic, g.types.join(', '), r.stepIndex)).slice(0, 2);
-        }
-      }
-      if (!r.topic.trim()) {
-        const t = await fetchFirstTopic(['일반형'], r.stepIndex, ri, false);
-        if (t) r.topic = t;
-      }
-      if (r.topic.trim() && r.contents.length === 0) {
-        r.contents = (await fetchContents(r.topic, '일반형', r.stepIndex)).slice(0, 2);
-      }
-    }
-    return result;
   }
 
   // 기본 그룹: 회사의 부정 리더 전체를 하나의 그룹으로
@@ -1432,17 +1385,6 @@ function ConfigureContent() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-
-      {/* 전 회차 자동 구성 로딩 오버레이 */}
-      {autoComposing && (
-        <div className="fixed inset-0 z-[60] bg-white/85 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-          <svg className="w-10 h-10 text-[#55A4DA] animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-          <div className="text-center">
-            <p className="text-sm font-bold text-gray-800">AI가 콘텐츠를 자동으로 구성하고 있습니다...</p>
-            <p className="text-xs text-gray-400 mt-1">전 회차의 주제와 콘텐츠를 준비 중입니다. 잠시만 기다려 주세요.</p>
-          </div>
-        </div>
-      )}
 
       {/* ── 상단 토퍼 ── */}
       <div className="bg-white border-b border-gray-200 px-8 py-3.5 flex items-center justify-between flex-shrink-0">
@@ -2771,7 +2713,7 @@ function ConfigureContent() {
                     {rounds.map((_, idx) => (
                       <button
                         key={idx}
-                        onClick={() => setPreviewTab(idx)}
+                        onClick={() => selectPreviewTab(idx)}
                         className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                           previewTab === idx
                             ? 'bg-[#55A4DA] text-white'
@@ -2822,7 +2764,7 @@ function ConfigureContent() {
                             ))}
                           </div>
                           <button
-                            onClick={() => handleGenerateRound(previewTab)}
+                            onClick={() => handleGenerateRound(previewTab, true)}
                             disabled={isGenerating}
                             className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-60"
                           >
