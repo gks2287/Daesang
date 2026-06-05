@@ -3,6 +3,10 @@ import { callClaude } from '@/lib/api/claude';
 
 type Topic = { title: string; description: string };
 
+// 서버 메모리 캐시 (회차+단계+유형+기업명 조합 → 주제 결과). 비용 절감용
+const topicsCache = new Map<string, Topic[]>();
+let topicsCallCount = 0;
+
 export async function POST(req: NextRequest) {
   const { leadershipTypes, companyName, kind, stepTitle, roundIndex } = await req.json() as {
     leadershipTypes: string[];
@@ -11,6 +15,15 @@ export async function POST(req: NextRequest) {
     stepTitle?: string;
     roundIndex?: number;
   };
+
+  // 캐시 키: 회차 인덱스 + 스토리라인 단계 + 리더십유형 + 기업명 + kind
+  const cacheKey = JSON.stringify({ roundIndex: roundIndex ?? '', stepTitle: stepTitle ?? '', types: [...(leadershipTypes ?? [])].sort(), companyName: companyName ?? '', kind: kind ?? '' });
+  topicsCallCount += 1;
+  const cached = topicsCache.get(cacheKey);
+  console.log(`[topics/suggest] 호출 #${topicsCallCount}, 캐시: ${cached ? 'HIT' : 'MISS'}`);
+  if (cached) {
+    return NextResponse.json({ topics: cached });
+  }
 
   const types = leadershipTypes?.filter(Boolean) ?? [];
   const isCustom = kind === '맞춤형' && types.length > 0 && types[0] !== '일반형';
@@ -50,6 +63,7 @@ ${isCustom ? `- 핵심: ${typeLabel} 유형 리더의 특성과 문제 행동을
     }
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { topics: Topic[] };
     const topics = (parsed.topics ?? []).slice(0, 3);
+    topicsCache.set(cacheKey, topics); // 결과 캐시 저장
     return NextResponse.json({ topics });
   } catch (err) {
     console.error('[topics/suggest]', err);

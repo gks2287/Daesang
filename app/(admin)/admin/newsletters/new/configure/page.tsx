@@ -164,6 +164,9 @@ function ConfigureContent() {
   const [livePreviewMode, setLivePreviewMode] = useState<'full' | 'email'>('full');
   // AI 자동 채움 중복 실행 가드 (`${roundIdx}:${targetId}`)
   const autoFilledRef = useRef<Set<string>>(new Set());
+  // 세션 단위 클라이언트 캐시 (기업 선택 시 초기화) — API 비용 절감
+  const topicsCacheRef = useRef<Map<string, TopicSuggestion[]>>(new Map());
+  const contentsCacheRef = useRef<Map<string, ContentPoolItem[]>>(new Map());
   // 좌측 실시간 미리보기 본문 (generate API 결과, `${roundIdx}:${targetId}` 키)
   const [livePreviewContent, setLivePreviewContent] = useState<Record<string, GeneratedNewsletter>>({});
   const [livePreviewGenerating, setLivePreviewGenerating] = useState<Set<string>>(new Set());
@@ -231,6 +234,12 @@ function ConfigureContent() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizardStep, customStoryline, suggestions, rounds, totalRounds, roundDistribution]);
+
+  // 새 뉴스레터 제작 시작(기업 선택/변경) 또는 나가기(초기화) 시 세션 캐시 초기화
+  useEffect(() => {
+    topicsCacheRef.current.clear();
+    contentsCacheRef.current.clear();
+  }, [configDraft.companyIds]);
 
   // Step 4 진입/회차 전환 시 활성 그룹 + 일반형 각각 주제·콘텐츠 AI 자동 채움
   useEffect(() => {
@@ -410,13 +419,19 @@ function ConfigureContent() {
   }
 
   // 생성 결과 섹션에 콘텐츠 썸네일 매핑 (contentId 매칭)
+  // thumbnail = 1순위(직접 등록), thumbnailUrl = 2순위(웹서칭 이미지) → 3순위(주제 Unsplash)
   function attachSectionThumbnails(data: GeneratedNewsletter, contents: ContentPoolItem[]): GeneratedNewsletter {
     return {
       ...data,
-      sections: data.sections.map(s => ({
-        ...s,
-        thumbnail: s.thumbnail ?? contents.find(c => c.id === s.contentId)?.thumbnail,
-      })),
+      sections: data.sections.map(s => {
+        const item = contents.find(c => c.id === s.contentId);
+        const registered = (item?.thumbnail && item.thumbnail.trim()) ? item.thumbnail : '';
+        return {
+          ...s,
+          thumbnail: registered || s.thumbnail,                // 1순위: 직접 등록 썸네일
+          thumbnailUrl: item?.thumbnailUrl || s.thumbnailUrl,  // 2순위: 웹서칭 이미지 → 3순위: 주제 Unsplash
+        };
+      }),
     };
   }
 
@@ -528,6 +543,11 @@ function ConfigureContent() {
     setTotalRounds(next);
   }
 
+  // 주제 추천 캐시 키 (서버 키와 동일 의미 — 회차+단계+유형+기업명+kind)
+  function topicsCacheKey(leadershipTypes: string[], companyName: string, kind: string, stepTitle: string, roundIndex: number): string {
+    return JSON.stringify({ roundIndex, stepTitle: stepTitle ?? '', types: [...leadershipTypes].sort(), companyName: companyName ?? '', kind });
+  }
+
   // ── 3단계: 주제 선정 함수 ──
   async function fetchTopicsForRound(roundIdx: number, targetId: string = 'general') {
     setIsLoadingTopics(true);
@@ -538,19 +558,21 @@ function ConfigureContent() {
     try {
       const currentRound = rounds[roundIdx];
       const group = isCustom ? currentRound?.customGroups.find(g => g.id === targetId) : undefined;
+      const leadershipTypes = (isCustom && group && group.types.length > 0) ? group.types : ['일반형'];
+      const companyName = targetCompanies[0]?.name ?? '';
+      const kind = isCustom ? '맞춤형' : '일반형';
+      const stepTitle = currentRound ? (customStoryline[currentRound.stepIndex]?.title ?? '') : '';
+      const cacheKey = topicsCacheKey(leadershipTypes, companyName, kind, stepTitle, roundIdx + 1);
+      const cachedTopics = topicsCacheRef.current.get(cacheKey);
+      if (cachedTopics) { console.log('[client topics/suggest] 캐시 HIT'); setSuggestions(cachedTopics); return; }
       const res = await fetch('/api/topics/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadershipTypes: (isCustom && group && group.types.length > 0) ? group.types : ['일반형'],
-          companyName: targetCompanies[0]?.name ?? '',
-          kind: isCustom ? '맞춤형' : '일반형',
-          stepTitle: currentRound ? customStoryline[currentRound.stepIndex]?.title : '',
-          roundIndex: roundIdx + 1,
-        }),
+        body: JSON.stringify({ leadershipTypes, companyName, kind, stepTitle, roundIndex: roundIdx + 1 }),
       });
       if (!res.ok) throw new Error('API 오류');
       const data = await res.json() as { topics: TopicSuggestion[] };
+      topicsCacheRef.current.set(cacheKey, data.topics ?? []);
       setSuggestions(data.topics ?? []);
     } catch {
       setTopicError('주제 추천을 불러오지 못했습니다. 다시 시도해주세요.');
@@ -571,21 +593,22 @@ function ConfigureContent() {
     const existingTopic = isCustom ? (group?.topic ?? '') : r.topic;
     autoFilledRef.current.add(key);
     if (existingTopic.trim()) return; // 이미 주제 있으면 가드만 등록하고 스킵
-    // 주제 추천 호출 (실패 시 1회 자동 재시도) — 유형/단계/회차/기업명 모두 반영
+    // 주제 추천 호출 (실패 시 1회 자동 재시도) — 유형/단계/회차/기업명 모두 반영. 클라이언트 캐시 우선
     const requestTopics = async (): Promise<TopicSuggestion[] | null> => {
-      const body = JSON.stringify({
-        leadershipTypes: (isCustom && group && group.types.length > 0) ? group.types : ['일반형'],
-        companyName: targetCompanies[0]?.name ?? '',
-        kind: isCustom ? '맞춤형' : '일반형',
-        stepTitle: customStoryline[r.stepIndex]?.title ?? '',
-        roundIndex: roundIdx + 1,
-      });
+      const leadershipTypes = (isCustom && group && group.types.length > 0) ? group.types : ['일반형'];
+      const companyName = targetCompanies[0]?.name ?? '';
+      const kind = isCustom ? '맞춤형' : '일반형';
+      const stepTitle = customStoryline[r.stepIndex]?.title ?? '';
+      const cacheKey = topicsCacheKey(leadershipTypes, companyName, kind, stepTitle, roundIdx + 1);
+      const cachedTopics = topicsCacheRef.current.get(cacheKey);
+      if (cachedTopics && cachedTopics.length) { console.log('[client topics/suggest] 캐시 HIT'); return cachedTopics; }
+      const body = JSON.stringify({ leadershipTypes, companyName, kind, stepTitle, roundIndex: roundIdx + 1 });
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const res = await fetch('/api/topics/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
           if (res.ok) {
             const data = await res.json() as { topics: TopicSuggestion[] };
-            if (data.topics?.length) return data.topics;
+            if (data.topics?.length) { topicsCacheRef.current.set(cacheKey, data.topics); return data.topics; }
           }
         } catch { /* 재시도 */ }
       }
@@ -715,24 +738,34 @@ function ConfigureContent() {
     if (!topic.trim()) return;
     setContentSuggestLoading(prev => { const n = [...prev]; n[roundIdx] = true; return n; });
     try {
-      const res = await fetch('/api/contents/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic,
-          leadershipType: '일반형',
-          storyStage: customStoryline[rounds[roundIdx]?.stepIndex ?? 0]?.title ?? '',
-          existingIds: rounds[roundIdx]?.contents.map(c => c.id) ?? [],
-        }),
-      });
-      if (!res.ok) return;
-      const data = await res.json() as { contents: ContentPoolItem[] };
-      if (!data.contents?.length) return;
+      const leadershipType = '일반형';
+      const cacheKey = `${topic.trim()}|${leadershipType}`;
+      let suggested = contentsCacheRef.current.get(cacheKey);
+      if (suggested) {
+        console.log('[client contents/suggest] 캐시 HIT');
+      } else {
+        const res = await fetch('/api/contents/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic,
+            leadershipType,
+            storyStage: customStoryline[rounds[roundIdx]?.stepIndex ?? 0]?.title ?? '',
+            existingIds: rounds[roundIdx]?.contents.map(c => c.id) ?? [],
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { contents: ContentPoolItem[] };
+        if (!data.contents?.length) return;
+        suggested = data.contents;
+        contentsCacheRef.current.set(cacheKey, suggested);
+      }
+      const picked = suggested;
       setRounds(prev =>
         prev.map((r, i) =>
           i !== roundIdx ? r : {
             ...r,
-            contents: [...r.contents, ...data.contents.filter(s => !r.contents.some(c => c.id === s.id))],
+            contents: [...r.contents, ...picked.filter(s => !r.contents.some(c => c.id === s.id))],
           }
         )
       );
@@ -749,22 +782,32 @@ function ConfigureContent() {
     try {
       const r = rounds[roundIdx];
       const group = r?.customGroups.find(g => g.id === groupId);
-      const res = await fetch('/api/contents/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic,
-          leadershipType: group && group.types.length ? group.types.join(', ') : '맞춤형',
-          storyStage: customStoryline[r?.stepIndex ?? 0]?.title ?? '',
-          existingIds: group?.contents.map(c => c.id) ?? [],
-        }),
-      });
-      if (!res.ok) return;
-      const data = await res.json() as { contents: ContentPoolItem[] };
-      if (!data.contents?.length) return;
+      const leadershipType = group && group.types.length ? group.types.join(', ') : '맞춤형';
+      const cacheKey = `${topic.trim()}|${leadershipType}`;
+      let suggested = contentsCacheRef.current.get(cacheKey);
+      if (suggested) {
+        console.log('[client contents/suggest] 캐시 HIT');
+      } else {
+        const res = await fetch('/api/contents/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic,
+            leadershipType,
+            storyStage: customStoryline[r?.stepIndex ?? 0]?.title ?? '',
+            existingIds: group?.contents.map(c => c.id) ?? [],
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { contents: ContentPoolItem[] };
+        if (!data.contents?.length) return;
+        suggested = data.contents;
+        contentsCacheRef.current.set(cacheKey, suggested);
+      }
+      const picked = suggested;
       updateGroup(roundIdx, groupId, g => ({
         ...g,
-        contents: [...g.contents, ...data.contents.filter(s => !g.contents.some(c => c.id === s.id))],
+        contents: [...g.contents, ...picked.filter(s => !g.contents.some(c => c.id === s.id))],
       }));
     } catch {
       // silently fail
@@ -987,6 +1030,9 @@ function ConfigureContent() {
     const { keyPrefix, targetId, topic, contents, interactions, surveys, placeholder } = opts;
     const kTopic = `${keyPrefix}:2`, kContent = `${keyPrefix}:3`, kInter = `${keyPrefix}:4`, kSurvey = `${keyPrefix}:5`;
     const isTarget = suggestionsTarget === targetId;
+    const targetKey = `${activeRoundIdx}:${targetId}`;
+    // 주제 추천 로딩: 수동 재추천(isLoadingTopics+isTarget) 또는 초기 자동 준비 중 주제 미설정 단계
+    const topicLoading = (isLoadingTopics && isTarget) || (preparingTargets.has(targetKey) && !topic.trim());
     return (
       <>
         {/* 주제 선정 */}
@@ -1005,37 +1051,46 @@ function ConfigureContent() {
                     {isLoadingTopics ? (<><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>생성 중...</>) : (<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>AI 재추천</>)}
                   </button>
                 </div>
-                {topicError && isTarget && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
-                    <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p className="text-xs text-red-600 flex-1">{topicError}</p>
-                    <button onClick={() => fetchTopicsForRound(activeRoundIdx, targetId)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">재시도</button>
+                {topicLoading ? (
+                  <div className="flex items-center gap-2 px-3 py-3 rounded-xl border border-dashed border-[#55A4DA]/40 bg-[#55A4DA]/5">
+                    <svg className="w-3.5 h-3.5 animate-spin text-[#55A4DA] flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+                    <p className="text-xs text-[#55A4DA] font-medium">AI가 주제를 추천하고 있어요...</p>
                   </div>
+                ) : (
+                  <>
+                    {topicError && isTarget && (
+                      <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                        <svg className="w-3.5 h-3.5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p className="text-xs text-red-600 flex-1">{topicError}</p>
+                        <button onClick={() => fetchTopicsForRound(activeRoundIdx, targetId)} className="text-xs font-semibold text-red-500 hover:text-red-700 whitespace-nowrap">재시도</button>
+                      </div>
+                    )}
+                    {suggestions.length > 0 && isTarget ? (
+                      <div className="space-y-2">
+                        {suggestions.map((sg, idx) => {
+                          const isSelected = topic === sg.title;
+                          return (
+                            <button key={idx} onClick={() => { opts.setTopic(sg.title); if (!contents.length) opts.suggestContents(sg.title); }} className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div>
+                              <div className="flex-1 min-w-0"><p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{sg.title}</p><p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{sg.description}</p></div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : topic.trim() ? (
+                      <div className="flex items-start gap-3 px-4 py-3 rounded-xl border-2 border-[#55A4DA] bg-[#55A4DA]/5">
+                        <div className="w-4 h-4 rounded-full border-2 border-[#55A4DA] bg-[#55A4DA] flex items-center justify-center flex-shrink-0 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-white" /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold text-[#55A4DA] mb-0.5">AI 추천 주제</p>
+                          <p className="text-sm font-semibold text-[#2E7DB5] leading-snug">{topic}</p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 )}
-                {suggestions.length > 0 && isTarget ? (
-                  <div className="space-y-2">
-                    {suggestions.map((sg, idx) => {
-                      const isSelected = topic === sg.title;
-                      return (
-                        <button key={idx} onClick={() => { opts.setTopic(sg.title); if (!contents.length) opts.suggestContents(sg.title); }} className={`w-full text-left flex items-start gap-3 px-4 py-3 rounded-xl border-2 transition-all ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]/5' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
-                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${isSelected ? 'border-[#55A4DA] bg-[#55A4DA]' : 'border-gray-300'}`}>{isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div>
-                          <div className="flex-1 min-w-0"><p className={`text-sm font-semibold leading-snug ${isSelected ? 'text-[#2E7DB5]' : 'text-gray-800'}`}>{sg.title}</p><p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{sg.description}</p></div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : topic.trim() ? (
-                  <div className="flex items-start gap-3 px-4 py-3 rounded-xl border-2 border-[#55A4DA] bg-[#55A4DA]/5">
-                    <div className="w-4 h-4 rounded-full border-2 border-[#55A4DA] bg-[#55A4DA] flex items-center justify-center flex-shrink-0 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-white" /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-bold text-[#55A4DA] mb-0.5">AI 추천 주제</p>
-                      <p className="text-sm font-semibold text-[#2E7DB5] leading-snug">{topic}</p>
-                    </div>
-                  </div>
-                ) : null}
                 <div>
                   <p className="text-[11px] text-gray-400 mb-1.5">직접 입력 또는 추천 주제 수정</p>
-                  <input type="text" value={topic} onChange={e => opts.setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && topic.trim()) opts.suggestContents(topic.trim()); }} placeholder={placeholder} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition" />
+                  <input type="text" value={topic} disabled={topicLoading} onChange={e => opts.setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && topic.trim()) opts.suggestContents(topic.trim()); }} placeholder={placeholder} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed" />
                 </div>
               </div>
             </div>

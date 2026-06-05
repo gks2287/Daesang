@@ -17,7 +17,8 @@ export type GeneratedNewsletterSection = {
   examples?: string;      // (구버전 호환)
   keyTakeaway: string;
   actionPlan?: string[];  // 실천 가능한 행동 2~3개
-  thumbnail?: string;     // 콘텐츠 썸네일
+  thumbnail?: string;     // 콘텐츠 썸네일 (콘텐츠 풀 우선)
+  thumbnailUrl?: string;  // 썸네일 폴백 URL (서버 생성)
   emoji: string;
   youtubeUrl?: string;
 };
@@ -292,6 +293,41 @@ export interface FullBodyOpts {
   templateSurveys?: SurveyTypeKey[];
 }
 
+// 썸네일 — 오류 없이 항상 표시. 후보 URL을 순서대로 시도(onError 시 다음 후보) →
+// 모두 실패하면 파란 그라데이션 배경 + 주제 텍스트로 대체 (절대 빈 박스 없음).
+const THUMB_FALLBACK_URL = 'https://picsum.photos/seed/business/800/450';
+function Thumbnail({ sources, label, aspectClass, wrapClass }: {
+  sources: (string | undefined)[];  // 우선순위 순 후보 URL (빈 값 자동 제외)
+  label?: string;
+  aspectClass: string;   // 'aspect-video' (전체 본문) 또는 'h-40' (요약본)
+  wrapClass?: string;
+}) {
+  const candidates = [
+    ...sources.filter((u): u is string => !!u && u.trim().length > 0),
+    THUMB_FALLBACK_URL,
+  ];
+  const [idx, setIdx] = useState(0);
+  const base = `${aspectClass} w-full rounded-2xl overflow-hidden border border-gray-100 ${wrapClass ?? ''}`;
+  // 모든 후보 실패 → 그라데이션 + 주제 텍스트
+  if (idx >= candidates.length) {
+    return (
+      <div className={`${base} flex items-center justify-center`} style={{ background: 'linear-gradient(135deg, #2B9EE8 0%, #1a6fb5 100%)' }}>
+        <span className="text-white font-bold text-sm tracking-wide px-4 text-center break-keep line-clamp-2">{label || '리더십 인사이트'}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={base}>
+      <img
+        src={candidates[idx]}
+        alt=""
+        className="w-full h-full object-cover"
+        onError={() => setIdx(i => i + 1)}
+      />
+    </div>
+  );
+}
+
 // 전체 본문 렌더 (실시간 미리보기·미리보기 모달·제작완료 미리보기 공통)
 export function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: FullBodyOpts) {
   const { vol, dateLabel, leadershipLabel, templateInteractions, templateSurveys } = opts;
@@ -315,7 +351,7 @@ export function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: Fu
         <div className="text-center mb-2">
           {generated.subject && <p className="text-xs font-bold text-[#2B9EE8] tracking-wide uppercase mb-3">{generated.subject}</p>}
           <p className="text-xs text-[#6B7280] tracking-wide mb-4">Vol.{vol} · {dateLabel}{leadershipLabel ? ` · ${leadershipLabel}` : ''}</p>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line">{formatHeadline(generated.headline)}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line break-keep">{formatHeadline(generated.headline)}</h1>
           <p className="text-base text-[#6B7280] leading-[1.8] text-left mt-4">{generated.intro}</p>
         </div>
 
@@ -342,20 +378,16 @@ export function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: Fu
                   <p className="text-2xl font-bold text-[#2C2C2C] leading-snug">{sec.emoji} {sec.contentTitle}</p>
                   {sec.subtitle && <p className="text-sm text-[#6B7280] mt-1">{sec.subtitle}</p>}
                 </div>
-                {/* 큰 썸네일 (16:9) — 있을 때만 표시 */}
-                {sec.thumbnail && (
-                  <div className="my-5 aspect-video w-full rounded-2xl overflow-hidden border border-gray-100">
-                    <img src={sec.thumbnail} alt="" className="w-full h-full object-cover" />
-                  </div>
-                )}
+                {/* 큰 썸네일 (16:9) — 항상 표시 (등록→웹서칭/주제URL→그라데이션) */}
+                <Thumbnail sources={[sec.thumbnail, sec.thumbnailUrl]} label={sec.contentTitle} aspectClass="aspect-video" wrapClass="my-5" />
                 {/* 도입 */}
-                {sec.intro && <p className={`text-base text-[#4B5563] leading-[1.8] mb-4 ${sec.thumbnail ? '' : 'mt-5'}`}>{sec.intro}</p>}
+                {sec.intro && <p className="text-base text-[#4B5563] leading-[1.8] mb-4">{sec.intro}</p>}
                 {/* 본문1 */}
                 {paras[0] && <p className="text-base text-[#4B5563] leading-[1.8] mb-4">{paras[0]}</p>}
                 {/* 인용구 박스 */}
                 {sec.quote && (
                   <blockquote className="my-6 border-l-4 border-[#2B9EE8] pl-5 py-1">
-                    <p className="text-xl italic font-medium text-[#2C2C2C] leading-relaxed">{sec.quote}</p>
+                    <p className="text-xl italic font-medium text-[#2C2C2C] leading-relaxed whitespace-pre-line break-keep">{sec.quote}</p>
                   </blockquote>
                 )}
                 {/* 본문2 */}
@@ -363,7 +395,7 @@ export function renderGeneratedFullBody(generated: GeneratedNewsletter, opts: Fu
                 {/* 데이터 박스 */}
                 {sec.dataStat && (sec.dataStat.value || sec.dataStat.description) && (
                   <div className="my-6 rounded-xl p-6" style={{ backgroundColor: '#F0F7FF' }}>
-                    <p className="text-3xl font-black text-[#2B9EE8] leading-tight">📊 {sec.dataStat.value}</p>
+                    <p className="text-3xl font-black text-[#2B9EE8] leading-tight whitespace-pre-line break-keep">📊 {sec.dataStat.value}</p>
                     <p className="text-base text-[#4B5563] leading-[1.7] mt-2">{sec.dataStat.description}</p>
                   </div>
                 )}
@@ -631,6 +663,9 @@ export interface EmailPreviewOpts {
 // 요약본(이메일) 미리보기 — 전체 본문과 같은 톤, 더 컴팩트하게
 export function renderNewsletterEmailPreview(generated: GeneratedNewsletter, opts: EmailPreviewOpts) {
   const { vol, dateLabel, onReadFull, firstThumbnail } = opts;
+  // 요약본 대표 썸네일 후보(우선순위 순): 첫 섹션 등록 → 웹서칭/주제URL → 전달받은 firstThumbnail
+  const heroSection = generated.sections[0];
+  const heroSources = [heroSection?.thumbnail, heroSection?.thumbnailUrl, firstThumbnail];
   const ctaButtons = (
     <div className="space-y-2.5">
       {onReadFull && (
@@ -650,18 +685,14 @@ export function renderNewsletterEmailPreview(generated: GeneratedNewsletter, opt
         <img src="/logo-jc.png" alt="J&Company" className="h-16 object-contain mx-auto" onError={e => { const t = e.target as HTMLImageElement; t.outerHTML = '<span class="text-xl font-black text-[#2B9EE8] tracking-wider">J&COMPANY</span>'; }} />
         <p className="text-[11px] text-[#9CA3AF] mt-2">Vol.{vol}{dateLabel ? ` · ${dateLabel}` : ''}</p>
       </div>
-      {/* 큰 썸네일 (16:9) — 있을 때만 표시 */}
-      {firstThumbnail && (
-        <div className="px-6 pt-4">
-          <div className="aspect-video w-full rounded-2xl overflow-hidden border border-gray-100">
-            <img src={firstThumbnail} alt="" className="w-full h-full object-cover" />
-          </div>
-        </div>
-      )}
+      {/* 대표 썸네일 — 요약본은 약간 낮게(h-40), 항상 표시 (오류 시 폴백) */}
+      <div className="px-6 pt-4">
+        <Thumbnail sources={heroSources} label={heroSection?.contentTitle} aspectClass="h-40" />
+      </div>
       {/* 카테고리 라벨 + 헤드라인 + 인트로 + 상단 CTA */}
       <div className="px-6 pt-5 text-center">
         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#2B9EE8] bg-[#EAF4FC] px-2.5 py-1 rounded-full mb-3">📌 리더십 인사이트</span>
-        <h1 className="text-xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line">{formatHeadline(generated.headline)}</h1>
+        <h1 className="text-xl font-bold text-[#2C2C2C] leading-snug whitespace-pre-line break-keep">{formatHeadline(generated.headline)}</h1>
         <p className="text-sm text-[#6B7280] leading-[1.7] mt-3">{generated.intro}</p>
         <div className="mt-5">{ctaButtons}</div>
       </div>

@@ -157,18 +157,28 @@ JSON만 반환하세요.`;
   return null;
 }
 
+// 서버 메모리 캐시 (URL → 파싱 결과). 같은 URL 재파싱 시 web_search 재호출 방지
+const urlCache = new Map<string, CuratedResult>();
+let curateCallCount = 0;
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { topic?: string; sourceUrl?: string };
 
     if (body.sourceUrl?.trim()) {
-      const result = await parseFromUrl(body.sourceUrl.trim());
+      const url = body.sourceUrl.trim();
+      curateCallCount += 1;
+      const cached = urlCache.get(url);
+      console.log(`[curate-content] 호출 #${curateCallCount}, 캐시: ${cached ? 'HIT' : 'MISS'} (${url})`);
+      if (cached) return NextResponse.json({ data: cached });
+      const result = await parseFromUrl(url);
       if (!result) {
         return NextResponse.json(
           { error: 'URL 콘텐츠 파싱에 실패했습니다. 다시 시도해주세요.' },
           { status: 500 },
         );
       }
+      urlCache.set(url, result); // 결과 캐시 저장
       return NextResponse.json({ data: result });
     }
 

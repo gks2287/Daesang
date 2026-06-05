@@ -24,7 +24,8 @@ export interface ContentPoolItem {
   duration: number;
   author: string;
   tags: string[];
-  thumbnail: string;
+  thumbnail: string;       // 직접 등록한 썸네일 (1순위)
+  thumbnailUrl?: string;   // 웹서칭 이미지 / 주제 기반 폴백 URL (2순위)
   body: string;
   summary?: string;
   createdAt: string;

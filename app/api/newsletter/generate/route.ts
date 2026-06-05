@@ -16,7 +16,8 @@ type GeneratedSection = {
   examples?: string;      // (구버전 호환)
   keyTakeaway: string;
   actionPlan?: string[];  // 실천 가능한 행동 2~3개
-  thumbnail?: string;     // 콘텐츠 썸네일 (서버 생성 X, 클라이언트에서 매핑)
+  thumbnail?: string;     // 콘텐츠 풀 썸네일 (클라이언트에서 매핑)
+  thumbnailUrl?: string;  // 썸네일 폴백 URL (콘텐츠 주제 기반 자동 생성)
   emoji: string;
   youtubeUrl?: string;
 };
@@ -62,6 +63,24 @@ type RoundPayload = {
   interactions: string[];
   surveys: string[];
 };
+
+// ── 썸네일 폴백 URL 생성 ──────────────────────────────────────────────
+// 콘텐츠 풀에 썸네일이 없는(웹서칭 등) 섹션을 위해 주제/카테고리 기반 이미지 URL 생성.
+// 1차 소스가 실패해도 클라이언트 렌더에서 그라데이션으로 폴백 → 항상 무언가는 표시됨.
+function pickThumbnailSeed(text: string): string {
+  const has = (...ws: string[]) => ws.some(w => text.includes(w));
+  if (has('소통', '피드백', '커뮤니케이션', '커뮤니', '경청', '대화', '1on1', '미팅', '회의')) return 'communication';
+  if (has('팀', '조직', '협업', '팀워크', '동료', '문화')) return 'teamwork';
+  if (has('코칭', '성장', '멘토', '육성', '코치', '발전')) return 'coaching';
+  if (has('변화', '혁신', '전환', '개선', '도전')) return 'innovation';
+  if (has('리더십', '자기인식', '리더', '인식', '성찰')) return 'leadership';
+  return 'business';
+}
+
+// Picsum: seed 고정이라 항상 같은 이미지 반환(일관성), 무료·안정·빠름
+function buildThumbnailUrl(seed: string): string {
+  return `https://picsum.photos/seed/${seed}/800/450`;
+}
 
 // ── 만족도 조사 고정 구조 ──────────────────────────────────────────────
 function buildAlwaysSurvey(): GeneratedSurvey {
@@ -142,6 +161,15 @@ export async function POST(req: NextRequest) {
 [이번 호 콘텐츠]
 ${contentSummary}
 
+[줄바꿈 규칙 — 가독성을 위해 반드시 적용]
+- headline: 18자 이상이면 의미 단위(조사/접속사/쉼표 앞뒤)에서 줄바꿈(\\n). 한 줄 15~20자 내외
+  예) "변화 앞에서 멈춰 선 리더에게 —\\n지금 이 자리가 출발점입니다"
+- dataStat.value: 길면 핵심 숫자/비교값 앞에서 줄바꿈(\\n)
+  예) "자기인식 높은 리더 vs 낮은 리더:\\n팀 성과 83% vs 47%"
+- quote: 20자 이상이면 의미 단위에서 줄바꿈(\\n)
+  예) "자신이 어디에 서 있는지 아는 리더만이,\\n팀을 어디로 데려갈지 알 수 있다"
+- 줄바꿈은 반드시 \\n 문자로 표시 (JSON 문자열 내 \\n)
+
 [작성 지침]
 - 뉴닉 스타일: 친근하고 재밌되 정제된 말투
 - 리더(독자)에게 직접 말 거는 2인칭 톤 ("여러분", "당신")
@@ -199,11 +227,18 @@ ${interactionSchema}` : ''}
 
     const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Omit<GeneratedNewsletter, 'surveys'>;
 
+    // 각 섹션에 썸네일 폴백 URL 부여 (주제·콘텐츠 제목·태그 기반 키워드 선택)
+    const sections: GeneratedSection[] = (parsed.sections ?? []).map(s => {
+      const matched = round.contents.find(c => c.id === s.contentId);
+      const keywordText = [s.contentTitle ?? '', round.topic ?? '', ...(matched?.tags ?? [])].join(' ');
+      return { ...s, thumbnailUrl: buildThumbnailUrl(pickThumbnailSeed(keywordText)) };
+    });
+
     const surveys: GeneratedSurvey[] = round.surveys.map(s =>
       s === 'always' ? buildAlwaysSurvey() : buildPeriodicSurvey()
     );
 
-    return NextResponse.json({ ...parsed, surveys } satisfies GeneratedNewsletter);
+    return NextResponse.json({ ...parsed, sections, surveys } satisfies GeneratedNewsletter);
   } catch (err) {
     console.error('[newsletter/generate]', err);
     return NextResponse.json({ error: '뉴스레터 생성 중 오류가 발생했습니다.' }, { status: 500 });

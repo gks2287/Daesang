@@ -16,7 +16,90 @@ type SearchedContent = {
   tags: string[];
   body: string;
   thumbnail: string;
+  imageUrl?: string;   // 웹서칭에서 찾은 대표 이미지 URL (있으면)
 };
+
+// 콘텐츠 주제/카테고리/태그 기반 Picsum 폴백 이미지 seed 선택
+function pickThumbnailSeed(text: string): string {
+  const has = (...ws: string[]) => ws.some(w => text.includes(w));
+  if (has('소통', '피드백', '커뮤니케이션', '커뮤니', '경청', '대화', '1on1', '미팅', '회의')) return 'communication';
+  if (has('팀', '조직', '협업', '팀워크', '동료', '문화')) return 'teamwork';
+  if (has('코칭', '성장', '멘토', '육성', '코치', '발전')) return 'coaching';
+  if (has('변화', '혁신', '전환', '개선', '도전')) return 'innovation';
+  if (has('리더십', '자기인식', '리더', '인식', '성찰')) return 'leadership';
+  return 'business';
+}
+
+// Picsum: seed 고정이라 항상 같은 이미지 반환(일관성), 무료·안정·빠름
+function buildThumbnailUrl(seed: string): string {
+  return `https://picsum.photos/seed/${seed}/800/450`;
+}
+
+// http(s) 이미지 URL 형태인지 가벼운 검증
+function isValidImageUrl(url: unknown): url is string {
+  return typeof url === 'string' && /^https?:\/\/\S+$/i.test(url.trim());
+}
+
+// 서버 메모리 캐시 (주제+리더십유형 → 콘텐츠 결과). web_search 재호출 방지(비용 절감)
+const contentsCache = new Map<string, ContentPoolItem[]>();
+let contentsCallCount = 0;
+
+// JSON 출력 강제 시스템 프롬프트 (배열만 출력)
+const SYSTEM_PROMPT = `You must respond with ONLY a JSON array. No explanations, no markdown, no code fences.
+Start your response with [ and end with ].
+Do not include any text before [ or after ].
+Example format:
+[
+  {
+    "title": "...",
+    "body": "...",
+    ...
+  }
+]`;
+
+// AI 응답 텍스트 → SearchedContent[] 추출. 다단계 폴백으로 견고하게 파싱.
+// 1) 코드펜스 제거 → [ ... ] 배열 파싱
+// 2) 구 형식 { "contents": [...] } 호환 파싱
+// 3) 개별 객체 정규식 추출 후 각각 파싱
+function parseContentsFromText(text: string): SearchedContent[] | null {
+  // 1) 코드펜스 제거
+  const cleaned = text.replace(/```json|```/g, '').trim();
+
+  // 1) [ ... ] 배열 직접 파싱: [ 이전 / ] 이후 텍스트 제거
+  const aStart = cleaned.indexOf('[');
+  const aEnd = cleaned.lastIndexOf(']');
+  if (aStart !== -1 && aEnd > aStart) {
+    try {
+      const arr = JSON.parse(cleaned.slice(aStart, aEnd + 1));
+      if (Array.isArray(arr) && arr.length > 0) return arr as SearchedContent[];
+    } catch { /* 다음 단계로 폴백 */ }
+  }
+
+  // 2) 구 형식 { "contents": [...] } 호환
+  const oStart = cleaned.indexOf('{');
+  const oEnd = cleaned.lastIndexOf('}');
+  if (oStart !== -1 && oEnd > oStart) {
+    try {
+      const obj = JSON.parse(cleaned.slice(oStart, oEnd + 1)) as { contents?: SearchedContent[] };
+      if (Array.isArray(obj?.contents) && obj.contents.length > 0) return obj.contents;
+    } catch { /* 다음 단계로 폴백 */ }
+  }
+
+  // 3) 개별 객체 정규식 추출 (최후의 수단)
+  const objMatches = cleaned.match(/\{[\s\S]*?\}/g);
+  if (objMatches) {
+    const items: SearchedContent[] = [];
+    for (const m of objMatches) {
+      try {
+        const obj = JSON.parse(m) as Record<string, unknown>;
+        if (obj && typeof obj === 'object' && 'title' in obj) items.push(obj as SearchedContent);
+      } catch { /* 해당 조각 스킵 */ }
+    }
+    if (items.length > 0) return items;
+  }
+
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,6 +109,15 @@ export async function POST(req: NextRequest) {
       storyStage?: string;
       existingIds?: string[];
     };
+
+    // 캐시 키: 주제 + 리더십유형
+    const cacheKey = `${(topic ?? '').trim()}|${leadershipType ?? '일반형'}`;
+    contentsCallCount += 1;
+    const cachedContents = contentsCache.get(cacheKey);
+    console.log(`[contents/suggest] 호출 #${contentsCallCount}, 캐시: ${cachedContents ? 'HIT' : 'MISS'}`);
+    if (cachedContents) {
+      return NextResponse.json({ contents: cachedContents });
+    }
 
     const isCustomType = leadershipType && leadershipType !== '일반형';
     const typeSearchHint = isCustomType ? (() => {
@@ -72,59 +164,79 @@ ${isCustomType ? `- 검색 핵심 키워드: ${typeSearchHint} (${leadershipType
 - 원문의 핵심 논점, 데이터, 사례를 구체적으로 포함
 - ${storyStage ?? ''} 단계 맥락 및 ${isCustomType ? leadershipType + ' 유형 리더십 개선' : '보편적 리더십 역량 강화'}과 연결되는 인사이트로 마무리
 
-반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트 포함 금지:
-{
-  "contents": [
-    {
-      "title": "콘텐츠 제목 (한국어, 흥미롭게)",
-      "category": "아티클|인터뷰|책 추천|성공 사례|카드뉴스|웹툰 중 하나",
-      "duration": 1,
-      "author": "출처/매체명",
-      "tags": ["태그1", "태그2", "태그3"],
-      "body": "뉴닉 스타일 본문 (duration 기준 분량 준수)",
-      "thumbnail": ""
+반드시 아래 JSON 배열 형식으로만 응답하세요. [ 로 시작하고 ] 로 끝나며, 그 외 텍스트는 절대 포함 금지:
+[
+  {
+    "title": "콘텐츠 제목 (한국어, 흥미롭게)",
+    "category": "아티클|인터뷰|책 추천|성공 사례|카드뉴스|웹툰 중 하나",
+    "duration": 1,
+    "author": "출처/매체명",
+    "tags": ["태그1", "태그2", "태그3"],
+    "body": "뉴닉 스타일 본문 (duration 기준 분량 준수)",
+    "thumbnail": "",
+    "imageUrl": "검색 결과에서 찾은 콘텐츠 대표 이미지 URL (http로 시작, 없으면 빈 문자열)"
+  }
+]`;
+
+    // AI 호출 → 응답 텍스트에서 JSON 파싱. 실패 시 새 API 호출로 1회 재시도.
+    let searched: SearchedContent[] | null = null;
+    for (let attempt = 1; attempt <= 2 && !searched; attempt += 1) {
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        tools: [{ type: 'web_search_20250305' as const, name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const textBlocks = response.content.filter(b => b.type === 'text');
+      const lastText = textBlocks.length > 0
+        ? (textBlocks[textBlocks.length - 1] as { type: 'text'; text: string }).text
+        : '';
+
+      searched = lastText ? parseContentsFromText(lastText) : null;
+      if (searched) {
+        console.log(`[contents/suggest] 파싱 성공: ${searched.length}개 (시도 ${attempt}/2)`);
+      } else {
+        console.warn(`[contents/suggest] 파싱 실패, ${attempt < 2 ? '재시도 중...' : '최종 실패'} (시도 ${attempt}/2)`);
+      }
     }
-  ]
-}`;
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
-      tools: [{ type: 'web_search_20250305' as const, name: 'web_search' }],
-      messages: [{ role: 'user', content: prompt }],
-    });
+    // 재시도까지 실패 → 500 대신 빈 배열 + parse_failed 플래그 반환 (클라이언트 안내용)
+    if (!searched) {
+      console.warn('[contents/suggest] 재시도 후에도 파싱 실패 — parse_failed 반환');
+      return NextResponse.json({ contents: [], error: 'parse_failed' });
+    }
 
-    const textBlocks = response.content.filter(b => b.type === 'text');
-    const lastText = textBlocks.length > 0
-      ? (textBlocks[textBlocks.length - 1] as { type: 'text'; text: string }).text
-      : '';
-
-    if (!lastText) return NextResponse.json({ contents: [] });
-
-    const jsonStart = lastText.indexOf('{');
-    const jsonEnd = lastText.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) return NextResponse.json({ contents: [] });
-
-    const parsed = JSON.parse(lastText.slice(jsonStart, jsonEnd + 1)) as { contents: SearchedContent[] };
     const now = Date.now();
 
-    const contents: ContentPoolItem[] = (parsed.contents ?? [])
+    const contents: ContentPoolItem[] = searched
       .slice(0, 2)
-      .map((c, i) => ({
-        id: `suggested_${now}_${i}`,
-        type: 'curation' as const,
-        title: String(c.title ?? ''),
-        category: VALID_CATEGORIES.includes(c.category as ContentCategory)
-          ? (c.category as ContentCategory)
-          : '아티클',
-        duration: Number(c.duration) === 2 ? 2 : 1,
-        author: String(c.author ?? ''),
-        tags: Array.isArray(c.tags) ? c.tags.slice(0, 5) : [],
-        body: String(c.body ?? ''),
-        thumbnail: '',
-        createdAt: new Date().toISOString().split('T')[0],
-      }));
+      .map((c, i) => {
+        const tags = Array.isArray(c.tags) ? c.tags.slice(0, 5) : [];
+        // 썸네일 폴백 URL: 웹서칭 이미지 우선, 없으면 주제/카테고리 기반 Unsplash
+        const keywordText = [String(c.title ?? ''), String(c.category ?? ''), topic ?? '', ...tags].join(' ');
+        const thumbnailUrl = isValidImageUrl(c.imageUrl)
+          ? c.imageUrl.trim()
+          : buildThumbnailUrl(pickThumbnailSeed(keywordText));
+        return {
+          id: `suggested_${now}_${i}`,
+          type: 'curation' as const,
+          title: String(c.title ?? ''),
+          category: VALID_CATEGORIES.includes(c.category as ContentCategory)
+            ? (c.category as ContentCategory)
+            : '아티클',
+          duration: Number(c.duration) === 2 ? 2 : 1,
+          author: String(c.author ?? ''),
+          tags,
+          body: String(c.body ?? ''),
+          thumbnail: '',
+          thumbnailUrl,
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+      });
 
+    if (contents.length > 0) contentsCache.set(cacheKey, contents); // 결과 캐시 저장
     return NextResponse.json({ contents });
   } catch (e) {
     console.error('[contents/suggest]', e);
