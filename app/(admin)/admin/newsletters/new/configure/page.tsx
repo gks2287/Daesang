@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNewsletterStore } from '@/store/newsletterStore';
 import { useCompanyStore } from '@/store/companyStore';
-import { DEFAULT_STORYLINE, STEP_COLORS, type StorylineStep } from '@/lib/storyline';
+import { DEFAULT_STORYLINE, type StorylineStep } from '@/lib/storyline';
 import { LEADERSHIP_COLOR } from '@/lib/constants/leadershipColors';
 import { type Round, type CustomGroup, makeCustomGroup } from '@/lib/content';
 import { getContentList, type ContentPoolItem, type ContentCategory } from '@/lib/api/contentPool';
@@ -50,6 +50,15 @@ const INTERACTION_LABELS: Record<string, string> = {
   reflection: '회고 질문',
   dodont: 'Do & Don\'t 리스트',
 };
+
+// 스토리라인 단계 카드/배지 통일 색상 (J&Company 메인 파랑 단색)
+const UNIFIED_STEP_COLOR = {
+  badge: 'bg-[#2B9EE8]',
+  cardBg: 'bg-white',
+  border: 'border-gray-200',
+  titleColor: 'text-gray-800',
+  subtitleColor: 'text-gray-500',
+} as const;
 
 function makeRoundsFromDistribution(dist: { stepIndex: number; count: number }[]): Round[] {
   const sorted = [...dist].sort((a, b) => a.stepIndex - b.stepIndex);
@@ -1488,10 +1497,10 @@ function ConfigureContent() {
             </div>
               <div className="flex flex-col lg:flex-row items-stretch gap-0">
                 {customStoryline.map((s, i) => {
-                  const color = STEP_COLORS[i % STEP_COLORS.length];
+                  const color = UNIFIED_STEP_COLOR;
                   return (
                     <div key={s.step} className="flex flex-col lg:flex-row items-stretch flex-1 min-w-0">
-                      <div className={`flex-1 rounded-2xl border-2 ${color.border} ${color.cardBg} p-5 flex flex-col gap-3`}>
+                      <div className={`flex-1 rounded-2xl border ${color.border} ${color.cardBg} p-5 flex flex-col gap-3 hover:border-blue-300 hover:shadow-sm transition-all`}>
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-full ${color.badge} flex items-center justify-center flex-shrink-0`}>
                             <span className="text-white text-xs font-bold">{s.step}</span>
@@ -1584,7 +1593,7 @@ function ConfigureContent() {
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex-shrink-0">단계별 회차 배분</p>
                   <div className="flex-1 space-y-2.5 overflow-y-auto">
                     {customStoryline.map((s, i) => {
-                      const color = STEP_COLORS[i % STEP_COLORS.length];
+                      const color = UNIFIED_STEP_COLOR;
                       const dist = roundDistribution.find(d => d.stepIndex === i);
                       const count = dist?.count ?? 1;
                       return (
@@ -1656,7 +1665,7 @@ function ConfigureContent() {
                     <div className="divide-y divide-gray-50">
                       {makeRoundsFromDistribution(roundDistribution).map((r, idx) => {
                         const s = customStoryline[r.stepIndex];
-                        const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+                        const color = UNIFIED_STEP_COLOR;
                         return (
                           <div key={idx} className="flex items-center gap-3 px-5 py-2.5">
                             <span className="text-xs text-gray-400 w-12 flex-shrink-0">{idx + 1}회차</span>
@@ -2192,7 +2201,7 @@ function ConfigureContent() {
                     <tbody className="divide-y divide-gray-50">
                       {rounds.map((r, idx) => {
                         const s = customStoryline[r.stepIndex];
-                        const color = STEP_COLORS[r.stepIndex % STEP_COLORS.length];
+                        const color = UNIFIED_STEP_COLOR;
                         const date = schedDates[idx];
                         return (
                           <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
@@ -2243,7 +2252,7 @@ function ConfigureContent() {
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="space-y-2.5">
                 {draftStoryline.map((s, idx) => {
-                  const color = STEP_COLORS[idx % STEP_COLORS.length];
+                  const color = UNIFIED_STEP_COLOR;
                   return (
                     <div key={idx} className={`rounded-xl border-2 ${color.border} ${color.cardBg} p-4`}>
                       <div className="flex items-center justify-between mb-3">
@@ -2523,7 +2532,7 @@ function ConfigureContent() {
           .filter(g => g.rounds.length > 0);
         const activeRound = rounds[previewTab];
         const activeStep = activeRound ? customStoryline[activeRound.stepIndex] : null;
-        const activeColor = activeRound ? STEP_COLORS[activeRound.stepIndex % STEP_COLORS.length] : null;
+        const activeColor = activeRound ? UNIFIED_STEP_COLOR : null;
         const intervalLabel = DELIVERY_INTERVAL_OPTIONS.find(o => o.value === deliveryInterval)?.label ?? '—';
 
         return (
@@ -2613,7 +2622,7 @@ function ConfigureContent() {
                   <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">스토리라인 단계별 구성</h3>
                   <div className="space-y-2.5">
                     {stepGroups.map(({ step, stepIdx, rounds: groupRounds }) => {
-                      const color = STEP_COLORS[stepIdx % STEP_COLORS.length];
+                      const color = UNIFIED_STEP_COLOR;
                       const isOpen = previewOpenGroups.has(stepIdx);
                       const rangeText = groupRounds.length === 1
                         ? `${groupRounds[0].globalIdx + 1}회차`
