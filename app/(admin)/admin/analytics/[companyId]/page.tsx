@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type LeadershipType, type Participant } from '@/store/participantStore';
 import * as XLSX from 'xlsx';
+import CompanyLogo from '@/components/CompanyLogo';
 
 const LEADERSHIP_COLORS: Record<LeadershipType, string> = {
   '독재형':    '#2E7DB5',
@@ -349,9 +350,7 @@ export default function CompanyDetailPage() {
 
         {/* 기업 정보 카드 */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex items-start gap-6">
-          <div className={`w-14 h-14 rounded-2xl ${company.color} flex items-center justify-center flex-shrink-0`}>
-            <span className="text-white text-base font-bold">{company.initials}</span>
-          </div>
+          <CompanyLogo name={company.name} size={56} />
           <div className="flex-1 grid grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-gray-400 mb-1">업종</p>

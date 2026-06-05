@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCompanyStore } from '@/store/companyStore';
+import CompanyLogo from '@/components/CompanyLogo';
 
 const STATUS_TABS = ['전체', '진행 전', '진행 중', '진행 완료'] as const;
 type StatusTab = typeof STATUS_TABS[number];
@@ -105,9 +106,7 @@ export default function DashboardPage() {
               >
                 {/* 기업명 + 아바타 */}
                 <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-xl ${company.color} flex items-center justify-center flex-shrink-0`}>
-                    <span className="text-white text-xs font-bold">{company.initials}</span>
-                  </div>
+                  <CompanyLogo name={company.name} size={56} />
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{company.name}</p>
                   </div>

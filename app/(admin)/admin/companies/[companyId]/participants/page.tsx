@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type DeliveryStatus, type LeadershipType, type Participant } from '@/store/participantStore';
 import { useMemo } from 'react';
+import CompanyLogo from '@/components/CompanyLogo';
 
 
 const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: string }> = {
@@ -162,9 +163,7 @@ const [search, setSearch] = useState('');
       <div className="flex-1 px-8 py-6 flex flex-col overflow-hidden bg-white">
         {/* 기업 요약 뱃지 */}
         <div className="flex items-center gap-3 mb-5">
-          <div className={`w-10 h-10 rounded-xl ${company.color} flex items-center justify-center flex-shrink-0`}>
-            <span className="text-white text-xs font-bold">{company.initials}</span>
-          </div>
+          <CompanyLogo name={company.name} size={40} />
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <h2 className="text-base font-bold text-gray-800">{company.name}</h2>

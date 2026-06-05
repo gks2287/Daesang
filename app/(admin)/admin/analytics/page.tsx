@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore, type LeadershipType } from '@/store/participantStore';
 import { DonutChart } from '@/components/ui/donut-chart';
+import CompanyLogo from '@/components/CompanyLogo';
 
 const YEARS = ['2026', '2025', '2024'];
 
@@ -171,9 +172,7 @@ export default function AnalyticsPage() {
                 {/* 기업 헤더 */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl ${company.color} flex items-center justify-center flex-shrink-0`}>
-                      <span className="text-white text-xs font-bold">{company.initials}</span>
-                    </div>
+                    <CompanyLogo name={company.name} size={40} />
                     <div>
                       <p className="text-sm font-bold text-text-primary group-hover:text-brand transition-colors">{company.name}</p>
                       <p className="text-xs text-text-secondary">{company.industry}</p>

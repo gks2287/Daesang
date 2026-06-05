@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useNewNewsletterDraftStore } from '@/store/newNewsletterDraftStore';
 import { useCompanyStore } from '@/store/companyStore';
 import { useNewsletterStore } from '@/store/newsletterStore';
+import CompanyLogo from '@/components/CompanyLogo';
 import { SavedNewsletterPreviewModal, type SavedNewsletterContent } from '@/components/newsletter/NewsletterRender';
 
 // ── 타입 ─────────────────────────────────────────────────────────────
@@ -319,9 +320,7 @@ function PreviewModal({ target, onClose }: { target: PreviewTarget; onClose: () 
         </div>
         <div className="p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-[#55A4DA] text-sm font-bold">{target.companyName.slice(0, 2)}</span>
-            </div>
+            <CompanyLogo name={target.companyName} size={40} />
             <div>
               <p className="text-sm font-bold text-gray-800">{target.companyName}</p>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -605,9 +604,7 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
       {/* 1단계 헤더 */}
       <button onClick={() => onToggle(key)}
         className="w-full flex items-center gap-4 px-5 py-4 bg-gray-50/80 hover:bg-gray-100/60 transition-colors text-left">
-        <div className="w-10 h-10 rounded-full bg-[#55A4DA]/10 flex items-center justify-center flex-shrink-0">
-          <span className="text-[#55A4DA] text-sm font-bold">{company.companyName.slice(0, 2)}</span>
-        </div>
+        <CompanyLogo name={company.companyName} size={40} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-gray-800">{company.companyName}</span>

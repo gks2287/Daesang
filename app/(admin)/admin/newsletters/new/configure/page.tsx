@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useNewsletterStore } from '@/store/newsletterStore';
 import { useCompanyStore } from '@/store/companyStore';
+import CompanyLogo from '@/components/CompanyLogo';
 import { DEFAULT_STORYLINE, type StorylineStep } from '@/lib/storyline';
 import { LEADERSHIP_COLOR } from '@/lib/constants/leadershipColors';
 import { type Round, type CustomGroup, makeCustomGroup } from '@/lib/content';
@@ -1420,9 +1421,7 @@ function ConfigureContent() {
                       }}
                       className="flex flex-col items-center gap-3 p-6 bg-white border-2 border-gray-200 rounded-2xl hover:border-[#55A4DA] hover:shadow-md transition-all group text-center"
                     >
-                      <div className={`w-14 h-14 rounded-2xl ${c.color} flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-white text-base font-bold">{c.initials}</span>
-                      </div>
+                      <CompanyLogo name={c.name} size={56} />
                       <div>
                         <p className="text-sm font-semibold text-gray-800 group-hover:text-[#2E7DB5] transition-colors">{c.name}</p>
                         <p className="text-xs text-gray-400 mt-0.5">{c.industry}</p>
