@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ContentPoolItem, ContentCategory } from '@/lib/api/contentPool';
+import { safeParseJson } from '@/lib/repairJson';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -101,11 +102,7 @@ ${isCustomType ? `- 검색 핵심 키워드: ${typeSearchHint} (${leadershipType
 
     if (!lastText) return NextResponse.json({ contents: [] });
 
-    const jsonStart = lastText.indexOf('{');
-    const jsonEnd = lastText.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) return NextResponse.json({ contents: [] });
-
-    const parsed = JSON.parse(lastText.slice(jsonStart, jsonEnd + 1)) as { contents: SearchedContent[] };
+    const parsed = safeParseJson<{ contents: SearchedContent[] }>(lastText);
     const now = Date.now();
 
     const contents: ContentPoolItem[] = (parsed.contents ?? [])
