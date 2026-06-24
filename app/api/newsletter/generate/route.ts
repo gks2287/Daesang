@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callClaude } from '@/lib/api/claude';
+import { safeParseJson } from '@/lib/repairJson';
 
 // ── 타입 ──────────────────────────────────────────────────────────────
 type GeneratedSection = {
@@ -221,11 +222,7 @@ ${interactionSchema}` : ''}
 
     const raw = await callClaude(prompt);
 
-    const jsonStart = raw.indexOf('{');
-    const jsonEnd = raw.lastIndexOf('}');
-    if (jsonStart === -1 || jsonEnd === -1) throw new Error('JSON 파싱 실패');
-
-    const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as Omit<GeneratedNewsletter, 'surveys'>;
+    const parsed = safeParseJson<Omit<GeneratedNewsletter, 'surveys'>>(raw);
 
     // 각 섹션에 썸네일 폴백 URL 부여 (주제·콘텐츠 제목·태그 기반 키워드 선택)
     const sections: GeneratedSection[] = (parsed.sections ?? []).map(s => {

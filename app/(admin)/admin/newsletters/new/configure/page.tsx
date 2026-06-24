@@ -221,6 +221,9 @@ function ConfigureContent() {
   const [showDraftToast, setShowDraftToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('임시저장 완료');
 
+  // ── PPT 다운로드 ──
+  const [isPptDownloading, setIsPptDownloading] = useState(false);
+
   // ── 미리보기 모달 ──
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState(0);
@@ -2765,13 +2768,44 @@ function ConfigureContent() {
                             )}
                           </div>
                           {!editMode && (
-                            <button
-                              onClick={startEdit}
-                              className="flex items-center gap-1 text-xs font-semibold text-[#55A4DA] hover:text-[#3A8BC4] transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                              본문 편집
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={startEdit}
+                                className="flex items-center gap-1 text-xs font-semibold text-[#55A4DA] hover:text-[#3A8BC4] transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                본문 편집
+                              </button>
+                              {generated && (
+                                <button
+                                  onClick={async () => {
+                                    if (isPptDownloading) return;
+                                    setIsPptDownloading(true);
+                                    try {
+                                      const { downloadNewsletterPPT } = await import('@/lib/generatePPT');
+                                      await downloadNewsletterPPT(generated, {
+                                        vol: previewTab + 1,
+                                        companyName: targetCompanies[0]?.name ?? 'J&Company',
+                                        dateLabel: schedDate ? formatKoreanDate(schedDate) : undefined,
+                                        interactions: activeRound?.interactions,
+                                        surveys: activeRound?.surveys,
+                                      });
+                                    } finally {
+                                      setIsPptDownloading(false);
+                                    }
+                                  }}
+                                  disabled={isPptDownloading}
+                                  className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  {isPptDownloading ? (
+                                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                  )}
+                                  PPT 다운로드
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
 
