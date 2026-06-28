@@ -17,6 +17,13 @@ const leadershipColor: Record<LeadershipType, string> = {
   '불통형':    'bg-pink-100 text-pink-600',
   '불명확형':  'bg-indigo-100 text-indigo-600',
   '감정기복형': 'bg-amber-100 text-amber-600',
+  '완벽주의형': 'bg-violet-100 text-violet-600',
+  '우유부단형': 'bg-rose-100 text-rose-600',
+  '코칭형':    'bg-emerald-100 text-emerald-700',
+  '민주형':    'bg-teal-100 text-teal-700',
+  '서번트형':  'bg-cyan-100 text-cyan-700',
+  '비전형':    'bg-sky-100 text-sky-700',
+  '관계중심형': 'bg-blue-100 text-blue-700',
 };
 
 type DraftParticipant = {

@@ -20,6 +20,7 @@ export interface Newsletter {
   totalLeaders: number;
   createdAt: string;
   updatedAt: string;
+  savedRounds?: number[];
   // 제작완료 시 저장되는 회차별 생성 본문 (전체본문 + 요약본 미리보기용)
   generatedContent?: SavedNewsletterContent;
 }
@@ -60,6 +61,7 @@ const MOCK: Newsletter[] = [
     totalRounds: 6, completedRounds: 6,
     type: 'custom', leaderType: 'positive', totalLeaders: 13,
     createdAt: '2026-02-10', updatedAt: '2026-03-25',
+    savedRounds: [1, 3],
   },
   {
     id: 5, title: '2026 감정기복형 리더십 코칭', companyId: 6, companyName: 'KT&G',
@@ -95,6 +97,7 @@ interface NewsletterStore {
   addNewsletter: (data: Omit<Newsletter, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateNewsletter: (id: number, data: Partial<Omit<Newsletter, 'id'>>) => void;
   removeNewsletter: (id: number) => void;
+  toggleRoundSaved: (id: number, roundNum: number) => void;
 }
 
 export const useNewsletterStore = create<NewsletterStore>((set, get) => ({
@@ -115,5 +118,15 @@ export const useNewsletterStore = create<NewsletterStore>((set, get) => ({
   },
   removeNewsletter: (id) => {
     set({ newsletters: get().newsletters.filter(n => n.id !== id) });
+  },
+  toggleRoundSaved: (id, roundNum) => {
+    set({
+      newsletters: get().newsletters.map(n => {
+        if (n.id !== id) return n;
+        const saved = new Set(n.savedRounds ?? []);
+        saved.has(roundNum) ? saved.delete(roundNum) : saved.add(roundNum);
+        return { ...n, savedRounds: [...saved].sort((a, b) => a - b) };
+      }),
+    });
   },
 }));

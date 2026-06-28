@@ -47,32 +47,37 @@ export const DEFAULT_INFO: LeadershipInfo[] = [
   },
 ];
 
-// 고객사별 현재 정보 및 히스토리
-const INITIAL_CURRENT: Record<number, LeadershipInfo[]> = {};
-const INITIAL_HISTORY: Record<number, LeadershipInfoVersion[]> = {};
+// 고객사+연도별 현재 정보 및 히스토리 (key: `${companyId}-${year}`)
+const INITIAL_CURRENT: Record<string, LeadershipInfo[]> = {};
+const INITIAL_HISTORY: Record<string, LeadershipInfoVersion[]> = {};
+
+function infoKey(companyId: number, year: number) {
+  return `${companyId}-${year}`;
+}
 
 interface LeadershipInfoStore {
-  current: Record<number, LeadershipInfo[]>;
-  history: Record<number, LeadershipInfoVersion[]>;
-  getCurrent: (companyId: number) => LeadershipInfo[];
-  getHistory: (companyId: number) => LeadershipInfoVersion[];
-  updateInfo: (companyId: number, info: LeadershipInfo[], fileName: string) => void;
+  current: Record<string, LeadershipInfo[]>;
+  history: Record<string, LeadershipInfoVersion[]>;
+  getCurrent: (companyId: number, year: number) => LeadershipInfo[];
+  getHistory: (companyId: number, year: number) => LeadershipInfoVersion[];
+  updateInfo: (companyId: number, year: number, info: LeadershipInfo[], fileName: string) => void;
 }
 
 export const useLeadershipInfoStore = create<LeadershipInfoStore>((set, get) => ({
   current: INITIAL_CURRENT,
   history: INITIAL_HISTORY,
 
-  getCurrent: (companyId) =>
-    get().current[companyId] ?? DEFAULT_INFO,
+  getCurrent: (companyId, year) =>
+    get().current[infoKey(companyId, year)] ?? DEFAULT_INFO,
 
-  getHistory: (companyId) =>
-    get().history[companyId] ?? [],
+  getHistory: (companyId, year) =>
+    get().history[infoKey(companyId, year)] ?? [],
 
-  updateInfo: (companyId, info, fileName) => {
+  updateInfo: (companyId, year, info, fileName) => {
     const state = get();
-    const prevInfo = state.current[companyId] ?? DEFAULT_INFO;
-    const prevHistory = state.history[companyId] ?? [];
+    const key = infoKey(companyId, year);
+    const prevInfo = state.current[key] ?? DEFAULT_INFO;
+    const prevHistory = state.history[key] ?? [];
 
     const newVersion: LeadershipInfoVersion = {
       id: Date.now(),
@@ -82,8 +87,8 @@ export const useLeadershipInfoStore = create<LeadershipInfoStore>((set, get) => 
     };
 
     set({
-      current: { ...state.current, [companyId]: info },
-      history: { ...state.history, [companyId]: [newVersion, ...prevHistory] },
+      current: { ...state.current, [key]: info },
+      history: { ...state.history, [key]: [newVersion, ...prevHistory] },
     });
   },
 }));

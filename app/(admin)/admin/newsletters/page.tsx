@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useNewNewsletterDraftStore } from '@/store/newNewsletterDraftStore';
 import { useCompanyStore } from '@/store/companyStore';
-import { useNewsletterStore } from '@/store/newsletterStore';
+import { useNewsletterStore, type Newsletter } from '@/store/newsletterStore';
 import CompanyLogo from '@/components/CompanyLogo';
 import { useParticipantStore, POSITIVE_TYPES, NEGATIVE_TYPES } from '@/store/participantStore';
 import { SavedNewsletterPreviewModal, type SavedNewsletterContent } from '@/components/newsletter/NewsletterRender';
@@ -467,11 +467,13 @@ function SendConfirmModal({ target, onConfirm, onClose, isSending }: {
 }
 
 // ── 4단계: 회차 행 ───────────────────────────────────────────────────
-function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab, isSelected, onSelect, onPreview }: {
+function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab, isSelected, onSelect, onPreview, isSavedRound, onToggleSaveRound }: {
   round: RoundData; companyName: string; polarity: Polarity; typeName: string; count: number;
   isCompleteTab: boolean; isSelected: boolean;
   onSelect: (selectionId: string, checked: boolean) => void;
   onPreview: (t: PreviewTarget) => void;
+  isSavedRound?: boolean;
+  onToggleSaveRound?: (roundNum: number) => void;
 }) {
   const isDone = round.status === 'completed';
   return (
@@ -495,6 +497,19 @@ function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab
         </div>
         <span className="text-[11px] text-gray-400 w-8 text-right">{round.progressPct}%</span>
       </div>
+      {isDone && onToggleSaveRound && (
+        <button
+          onClick={() => onToggleSaveRound(round.round)}
+          className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
+            isSavedRound ? 'text-[#55A4DA]' : 'text-gray-300 hover:text-[#55A4DA]'
+          }`}
+          title={isSavedRound ? '저장소에서 제거' : '저장소에 저장'}
+        >
+          <svg className="w-3.5 h-3.5" fill={isSavedRound ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </button>
+      )}
       <div className="flex-shrink-0 w-[72px] text-right">
         {isDone ? (
           <button onClick={() => onPreview({ companyName, polarity, typeName, count, round })}
@@ -513,12 +528,13 @@ function RoundRow({ round, companyName, polarity, typeName, count, isCompleteTab
 }
 
 // ── 3단계: 리더십 유형 행 ────────────────────────────────────────────
-function TypeRow({ typeData, visibleRounds, companyId, companyName, polarity, openKeys, onToggle, isCompleteTab, selectedIds, onSelectRound, onPreview, selectedNewsletterIds, onToggleNewsletters }: {
+function TypeRow({ typeData, visibleRounds, companyId, companyName, polarity, openKeys, onToggle, isCompleteTab, selectedIds, onSelectRound, onPreview, selectedNewsletterIds, onToggleNewsletters, savedRounds, onToggleRoundSaved }: {
   typeData: TypeData; visibleRounds: RoundData[]; companyId: number; companyName: string; polarity: Polarity;
   openKeys: Set<string>; onToggle: (k: string) => void; isCompleteTab: boolean;
   selectedIds: Set<string>; onSelectRound: (selectionId: string, checked: boolean) => void;
   onPreview: (t: PreviewTarget) => void;
   selectedNewsletterIds: Set<number>; onToggleNewsletters: (ids: number[]) => void;
+  savedRounds?: number[]; onToggleRoundSaved?: (roundNum: number) => void;
 }) {
   const key = `c${companyId}-${polarity}-${typeData.typeName}`;
   const isOpen = openKeys.has(key);
@@ -550,19 +566,22 @@ function TypeRow({ typeData, visibleRounds, companyId, companyName, polarity, op
         <RoundRow key={round.id} round={round} companyName={companyName} polarity={polarity}
           typeName={typeData.typeName} count={typeData.count} isCompleteTab={isCompleteTab}
           isSelected={selectedIds.has(`${typeData.typeName}-${round.round}`)} onSelect={onSelectRound}
-          onPreview={onPreview} />
+          onPreview={onPreview}
+          isSavedRound={savedRounds?.includes(round.round)}
+          onToggleSaveRound={onToggleRoundSaved} />
       ))}
     </div>
   );
 }
 
 // ── 2단계: 긍정/부정 행 ──────────────────────────────────────────────
-function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isCompleteTab, selectedIds, onSelectRound, onPreview, activeTab, selectedNewsletterIds, onToggleNewsletters }: {
+function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isCompleteTab, selectedIds, onSelectRound, onPreview, activeTab, selectedNewsletterIds, onToggleNewsletters, newsletters, onToggleRoundSaved }: {
   group: PolarityGroup; companyId: number; companyName: string;
   openKeys: Set<string>; onToggle: (k: string) => void; isCompleteTab: boolean;
   selectedIds: Set<string>; onSelectRound: (selectionId: string, checked: boolean) => void;
   onPreview: (t: PreviewTarget) => void; activeTab: TabType;
   selectedNewsletterIds: Set<number>; onToggleNewsletters: (ids: number[]) => void;
+  newsletters: Newsletter[]; onToggleRoundSaved: (nlId: number, roundNum: number) => void;
 }) {
   const key = `c${companyId}-${group.polarity}`;
   const isOpen = openKeys.has(key);
@@ -611,32 +630,41 @@ function PolarityRow({ group, companyId, companyName, openKeys, onToggle, isComp
           if (!seen.has(r.round)) { seen.add(r.round); mergedRounds.push(r); }
         }));
         mergedRounds.sort((a, b) => a.round - b.round);
+        const positiveNL = newsletters.find(n => n.companyId === companyId && n.leaderType === 'positive');
         return mergedRounds.map(round => (
           <RoundRow key={round.id} round={round} companyName={companyName} polarity={group.polarity}
             typeName="긍정 리더" count={group.totalCount} isCompleteTab={isCompleteTab}
             isSelected={selectedIds.has(`긍정 리더-${round.round}`)} onSelect={onSelectRound}
-            onPreview={onPreview} />
+            onPreview={onPreview}
+            isSavedRound={positiveNL?.savedRounds?.includes(round.round)}
+            onToggleSaveRound={positiveNL ? (rn) => onToggleRoundSaved(positiveNL.id, rn) : undefined} />
         ));
-      })() : visibleTypes.map(t => (
-        <TypeRow key={t.typeName} typeData={t} visibleRounds={t.visibleRounds}
-          companyId={companyId} companyName={companyName} polarity={group.polarity}
-          openKeys={openKeys} onToggle={onToggle} isCompleteTab={isCompleteTab}
-          selectedIds={selectedIds} onSelectRound={onSelectRound}
-          onPreview={onPreview}
-          selectedNewsletterIds={selectedNewsletterIds} onToggleNewsletters={onToggleNewsletters} />
-      )))}
+      })() : visibleTypes.map(t => {
+        const nl = newsletters.find(n => n.companyId === companyId && n.leadershipType === t.typeName);
+        return (
+          <TypeRow key={t.typeName} typeData={t} visibleRounds={t.visibleRounds}
+            companyId={companyId} companyName={companyName} polarity={group.polarity}
+            openKeys={openKeys} onToggle={onToggle} isCompleteTab={isCompleteTab}
+            selectedIds={selectedIds} onSelectRound={onSelectRound}
+            onPreview={onPreview}
+            selectedNewsletterIds={selectedNewsletterIds} onToggleNewsletters={onToggleNewsletters}
+            savedRounds={nl?.savedRounds}
+            onToggleRoundSaved={nl ? (rn) => onToggleRoundSaved(nl.id, rn) : undefined} />
+        );
+      }))}
     </div>
   );
 }
 
 // ── 1단계: 기업 행 ───────────────────────────────────────────────────
-function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, activeTab, selectedIds, onSelectRound, onSelectRoundBulk, onDelete, selectedNewsletterIds, onToggleNewsletters }: {
+function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, activeTab, selectedIds, onSelectRound, onSelectRoundBulk, onDelete, selectedNewsletterIds, onToggleNewsletters, newsletters, onToggleSaved }: {
   company: CompanyData; openKeys: Set<string>; onToggle: (k: string) => void;
   isCompleteTab: boolean; onPreview: (t: PreviewTarget) => void; activeTab: TabType;
   selectedIds: Set<string>; onSelectRound: (selectionId: string, checked: boolean) => void;
   onSelectRoundBulk: (selectionIds: string[], checked: boolean) => void;
   onDelete: (company: CompanyData) => void;
   selectedNewsletterIds: Set<number>; onToggleNewsletters: (ids: number[]) => void;
+  newsletters: Newsletter[]; onToggleSaved: (id: number, roundNum: number) => void;
 }) {
   const key = `c${company.companyId}`;
   const isOpen = openKeys.has(key);
@@ -656,6 +684,7 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
     allRounds.filter(r => r.status === 'completed').forEach(r => nums.add(r.round));
     return Array.from(nums).sort((a, b) => a - b);
   }, [allRounds]);
+
 
   // 회차번호 → 해당 회차의 모든 "유형명-회차번호" selectionId 목록
   const roundToSelectionIds = useMemo(() => {
@@ -729,7 +758,8 @@ function CompanyRow({ company, openKeys, onToggle, isCompleteTab, onPreview, act
                 companyName={company.companyName} openKeys={openKeys} onToggle={onToggle}
                 isCompleteTab={isCompleteTab} selectedIds={selectedIds}
                 onSelectRound={onSelectRound} onPreview={onPreview} activeTab={activeTab}
-                selectedNewsletterIds={selectedNewsletterIds} onToggleNewsletters={onToggleNewsletters} />
+                selectedNewsletterIds={selectedNewsletterIds} onToggleNewsletters={onToggleNewsletters}
+                newsletters={newsletters} onToggleRoundSaved={onToggleSaved} />
             ))}
           </div>
 
@@ -765,6 +795,7 @@ function NewslettersContent() {
   const router = useRouter();
   const resetDraft = useNewNewsletterDraftStore(s => s.resetDraft);
   const removeNewsletter = useNewsletterStore(s => s.removeNewsletter);
+  const toggleRoundSaved = useNewsletterStore(s => s.toggleRoundSaved);
   const draftCompanyIds = useNewNewsletterDraftStore(s => s.companyIds);
   const draftWizardStep = useNewNewsletterDraftStore(s => s.wizardStep);
   const companies = useCompanyStore(s => s.companies);
@@ -1221,6 +1252,8 @@ function NewslettersContent() {
                 onDelete={setDeleteTarget}
                 selectedNewsletterIds={selectedNewsletterIds}
                 onToggleNewsletters={toggleNewsletterSelect}
+                newsletters={newsletters}
+                onToggleSaved={toggleRoundSaved}
               />
             ))
           )}

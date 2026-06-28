@@ -8,12 +8,19 @@ import * as XLSX from 'xlsx';
 import CompanyLogo from '@/components/CompanyLogo';
 
 const LEADERSHIP_COLORS: Record<LeadershipType, string> = {
-  '독재형':    '#2E7DB5',
-  '방관형':    '#55A4DA',
+  '독재형':     '#2E7DB5',
+  '방관형':     '#55A4DA',
   '성과압박형': '#7EC8E3',
-  '불통형':    '#A8D8EA',
-  '불명확형':  '#4A90C4',
+  '불통형':     '#A8D8EA',
+  '불명확형':   '#9B7BB8',
   '감정기복형': '#B8D4E8',
+  '완벽주의형': '#4A90C4',
+  '우유부단형': '#6EB5D8',
+  '코칭형':     '#34C97A',
+  '민주형':     '#50C4A0',
+  '서번트형':   '#38B2AC',
+  '비전형':     '#4299E1',
+  '관계중심형': '#68D391',
 };
 
 const statusDot: Record<string, string> = {
@@ -242,6 +249,73 @@ export default function CompanyDetailPage() {
 
   const [activeLogRound, setActiveLogRound] = useState<number | 'all'>('all');
   const [activeBottomTab, setActiveBottomTab] = useState<'summary' | 'log'>('summary');
+
+  const typeSummary = useMemo(() => {
+    if (!activeLeadership) return null;
+    const tm = yearMembers.filter(p => p.leadershipType === activeLeadership);
+    if (tm.length === 0) return null;
+
+    const sent = tm.filter(p => p.deliveryStatus !== '미발송').length;
+    const opened = tm.filter(p => p.deliveryStatus === '열람' || p.deliveryStatus === '완료').length;
+    const completed = tm.filter(p => p.deliveryStatus === '완료').length;
+    const inProgress = tm.filter(p => p.deliveryStatus === '열람').length;
+    const notSent = tm.filter(p => p.deliveryStatus === '미발송').length;
+    const openRate = sent > 0 ? Math.round((opened / sent) * 100) : 0;
+
+    const avgProgress = Math.round(
+      tm.reduce((s, p) => s + (p.stepTotal > 0 ? (p.stepCurrent / p.stepTotal) * 100 : 0), 0) / tm.length
+    );
+    const avgStep = Math.round(
+      tm.reduce((s, p) => s + p.stepCurrent, 0) / tm.length * 10
+    ) / 10;
+    const maxStep = tm[0]?.stepTotal ?? 6;
+
+    // 전체 평균 열람률
+    const totalSent = yearMembers.filter(p => p.deliveryStatus !== '미발송').length;
+    const totalOpened = yearMembers.filter(p => p.deliveryStatus === '열람' || p.deliveryStatus === '완료').length;
+    const overallOpenRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
+    const openDiff = openRate - overallOpenRate;
+
+    // 전체 유형 중 열람률 순위
+    const allTypeRates = (Object.keys(LEADERSHIP_COLORS) as LeadershipType[])
+      .map(t => {
+        const ps = yearMembers.filter(p => p.leadershipType === t);
+        const s = ps.filter(p => p.deliveryStatus !== '미발송').length;
+        const o = ps.filter(p => p.deliveryStatus === '열람' || p.deliveryStatus === '완료').length;
+        return { type: t, rate: s > 0 ? Math.round((o / s) * 100) : 0, count: ps.length };
+      })
+      .filter(x => x.count > 0)
+      .sort((a, b) => b.rate - a.rate);
+
+    const rank = allTypeRates.findIndex(x => x.type === activeLeadership) + 1;
+    const total = allTypeRates.length;
+
+    // 열람률 라인
+    let openLine = '';
+    if (rank === 1 && total > 1) {
+      openLine = `열람률 ${openRate}%로 전체 ${total}개 유형 중 1위입니다. 전체 평균(${overallOpenRate}%)보다 ${Math.abs(openDiff)}%p 높아 참여 의지가 두드러집니다.`;
+    } else if (rank === total && total > 1) {
+      openLine = `열람률 ${openRate}%로 전체 ${total}개 유형 중 최하위입니다. 전체 평균(${overallOpenRate}%)보다 ${Math.abs(openDiff)}%p 낮아 발송 후 추가 독려가 필요합니다.`;
+    } else {
+      const diffStr = openDiff >= 0 ? `${openDiff}%p 높은` : `${Math.abs(openDiff)}%p 낮은`;
+      openLine = `열람률 ${openRate}%로 전체 평균(${overallOpenRate}%)보다 ${diffStr} 수준이며, ${total}개 유형 중 ${rank}위입니다.`;
+    }
+    if (notSent > 0) openLine += ` (미발송 ${notSent}명 제외)`;
+
+    // 진행률 라인
+    let progressLine = '';
+    if (completed === tm.length) {
+      progressLine = `${tm.length}명 전원이 전 ${maxStep}회차를 완료했습니다. 코칭 프로그램을 성공적으로 이수한 유형입니다.`;
+    } else if (completed > 0) {
+      progressLine = `${tm.length}명 중 ${completed}명이 전 회차를 완료했고, ${inProgress}명이 현재 진행 중입니다. 평균 ${avgStep}회차 진행 중(진행률 ${avgProgress}%).`;
+    } else if (avgProgress >= 50) {
+      progressLine = `전원 코칭이 진행 중이며 평균 ${avgStep}회차까지 완료(진행률 ${avgProgress}%)했습니다. 꾸준한 참여가 이어지고 있습니다.`;
+    } else {
+      progressLine = `평균 진행률 ${avgProgress}%(${avgStep}/${maxStep}회차)로 초기 단계에 머물고 있습니다. 참여 촉진을 위한 추가 액션이 권장됩니다.`;
+    }
+
+    return { lines: [openLine, progressLine], count: tm.length };
+  }, [activeLeadership, yearMembers]);
 
   const typeMembers = useMemo(
     () => activeLeadership ? yearMembers.filter(p => p.leadershipType === activeLeadership) : [],
@@ -476,6 +550,24 @@ export default function CompanyDetailPage() {
           </div>
         </div>
 
+        {/* 유형 요약 배너 */}
+        {typeSummary && activeLeadership && (
+          <div className="flex items-start gap-4 px-6 py-5 rounded-2xl border"
+            style={{ backgroundColor: `${LEADERSHIP_COLORS[activeLeadership]}0d`, borderColor: `${LEADERSHIP_COLORS[activeLeadership]}40` }}>
+            <span className="w-3 h-3 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: LEADERSHIP_COLORS[activeLeadership] }} />
+            <div className="flex-1">
+              <p className="text-sm font-bold mb-2" style={{ color: LEADERSHIP_COLORS[activeLeadership] }}>
+                {activeLeadership} · {typeSummary.count}명
+              </p>
+              {typeSummary.lines.map((line, i) => (
+                <p key={i} className="text-sm text-gray-600 leading-relaxed">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 핵심 지표 + 월간 열람 추이 */}
         <div className="flex gap-4 items-stretch">
           {/* 핵심 지표 */}
@@ -513,43 +605,93 @@ export default function CompanyDetailPage() {
               데이터가 없습니다.
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 text-xs text-gray-400">
-                  <th className="px-6 py-3 text-left font-medium">이름</th>
-                  <th className="px-6 py-3 text-left font-medium">부서 / 직급</th>
-                  <th className="px-6 py-3 text-left font-medium">리더십 유형</th>
-                  <th className="px-6 py-3 text-left font-medium">진행 회차</th>
-                  <th className="px-6 py-3 text-left font-medium">최근 열람</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {yearMembers.filter(p => activeLeadership === null || p.leadershipType === activeLeadership).map(p => (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3.5 text-sm font-medium text-gray-800">{p.name}</td>
-                    <td className="px-6 py-3.5 text-sm text-gray-500">{p.department} · {p.position}</td>
-                    <td className="px-6 py-3.5">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: LEADERSHIP_COLORS[p.leadershipType] }} />
-                        <span className="text-sm text-gray-600">{p.leadershipType}</span>
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#55A4DA] rounded-full"
-                            style={{ width: `${p.stepTotal > 0 ? (p.stepCurrent / p.stepTotal) * 100 : 0}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-400">{p.stepCurrent}/{p.stepTotal}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5 text-sm text-gray-400">{p.lastOpenedAt ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            (() => {
+              const tableMembers = yearMembers.filter(p => activeLeadership === null || p.leadershipType === activeLeadership);
+              const maxRounds = Math.max(...tableMembers.map(p => p.stepTotal), 0);
+              const rounds = Array.from({ length: maxRounds }, (_, i) => i + 1);
+              const byType = activeLeadership !== null;
+              const hasRounds = rounds.length > 0;
+              return (
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs text-gray-400">
+                      <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>이름</th>
+                      <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>부서 / 직급</th>
+                      {!byType && (
+                        <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>리더십 유형</th>
+                      )}
+                      <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>발송 회차</th>
+                      <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>최근 발송 일자</th>
+                      <th className="px-6 py-3 text-left font-medium" rowSpan={hasRounds ? 2 : 1}>뱃지 개수</th>
+                      {hasRounds && (
+                        <th className="px-4 py-2 text-center font-medium border-l border-gray-200" colSpan={rounds.length}>
+                          회차별 참여
+                        </th>
+                      )}
+                    </tr>
+                    {hasRounds && (
+                      <tr className="bg-gray-50 text-xs text-gray-400 border-t border-gray-100">
+                        {rounds.map(r => (
+                          <th key={r} className="px-2 py-2 text-center font-medium min-w-[52px] whitespace-nowrap border-l border-gray-100 first:border-l-gray-200">
+                            {rounds.length <= 6 ? `${r}회차` : r}
+                          </th>
+                        ))}
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {tableMembers.map(p => {
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3.5 text-sm font-medium text-gray-800">{p.name}</td>
+                          <td className="px-6 py-3.5 text-sm text-gray-500">{p.department} · {p.position}</td>
+                          {!byType && (
+                            <td className="px-6 py-3.5">
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                style={{ backgroundColor: `${LEADERSHIP_COLORS[p.leadershipType]}22`, color: LEADERSHIP_COLORS[p.leadershipType] }}>
+                                {p.leadershipType}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-6 py-3.5 text-sm text-gray-700">
+                            {p.deliveryStatus === '미발송'
+                              ? <span className="text-gray-300">—</span>
+                              : <span>{p.assessmentRound}회차</span>
+                            }
+                          </td>
+                          <td className="px-6 py-3.5 text-sm text-gray-500">
+                            {p.lastOpenedAt ?? <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                              <span className="text-sm font-semibold text-gray-700">{p.stepCurrent}</span>
+                            </div>
+                          </td>
+                          {rounds.map(r => {
+                            const done = p.stepCurrent >= r;
+                            const notSent = p.deliveryStatus === '미발송' && p.stepCurrent < r;
+                            return (
+                              <td key={r} className="px-3 py-3.5 text-center border-l border-gray-100 first:border-l-gray-200">
+                                {notSent ? (
+                                  <span className="text-[11px] text-gray-300 font-medium">—</span>
+                                ) : done ? (
+                                  <span className="text-[13px] font-bold text-emerald-500">O</span>
+                                ) : (
+                                  <span className="text-[13px] font-bold text-red-300">X</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              );
+            })()
           )}
         </div>
 
