@@ -9,6 +9,7 @@ export type LeadershipType =
   | '독재형'
   | '방관형'
   | '불통형'
+  | '불명확형'
   | '성과압박형'
   | '감정기복형'
   | '완벽주의형'
@@ -33,6 +34,11 @@ export interface Participant {
   lastOpenedAt: string | null;
   stepCurrent: number;
   stepTotal: number;
+  token?: string;
+}
+
+export function participantToken(p: Participant): string {
+  return p.token ?? `nl-${p.id}`;
 }
 
 const MOCK: Participant[] = [

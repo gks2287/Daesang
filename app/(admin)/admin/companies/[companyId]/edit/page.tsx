@@ -19,6 +19,13 @@ const leadershipColor: Record<LeadershipType, string> = {
   '불통형':    'bg-pink-100 text-pink-600',
   '불명확형':  'bg-indigo-100 text-indigo-600',
   '감정기복형': 'bg-amber-100 text-amber-600',
+  '완벽주의형': 'bg-violet-100 text-violet-600',
+  '우유부단형': 'bg-rose-100 text-rose-600',
+  '코칭형':    'bg-emerald-100 text-emerald-700',
+  '민주형':    'bg-teal-100 text-teal-700',
+  '서번트형':  'bg-cyan-100 text-cyan-700',
+  '비전형':    'bg-sky-100 text-sky-700',
+  '관계중심형': 'bg-blue-100 text-blue-700',
 };
 
 type EditingParticipant = Omit<Participant, 'id' | 'deliveryStatus' | 'lastOpenedAt' | 'stepCurrent' | 'stepTotal'>;
@@ -46,9 +53,16 @@ export default function CompanyEditPage() {
   const removeParticipant = useParticipantStore(s => s.removeParticipant);
   const addParticipants = useParticipantStore(s => s.addParticipants);
 
+  // ── 연도별 직책자 ──
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(years[0] ?? currentYear);
+
+  // ── 리더십 유형 정보 연도 (독립 탭) ──
+  const [infoYear, setInfoYear] = useState<number>(years[0] ?? currentYear);
+
   const updateInfo = useLeadershipInfoStore(s => s.updateInfo);
-  const leadershipCurrent = useLeadershipInfoStore(s => s.current[companyId] ?? DEFAULT_INFO);
-  const leadershipHistory = useLeadershipInfoStore(s => s.history[companyId] ?? EMPTY_HISTORY);
+  const leadershipCurrent = useLeadershipInfoStore(s => s.current[`${companyId}-${infoYear}`] ?? DEFAULT_INFO);
+  const leadershipHistory = useLeadershipInfoStore(s => s.history[`${companyId}-${infoYear}`] ?? EMPTY_HISTORY);
 
   // ── 기업 정보 폼 ──
   const [companyForm, setCompanyForm] = useState({
@@ -66,10 +80,6 @@ export default function CompanyEditPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [uploadToast, setUploadToast] = useState<{ name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // ── 연도별 직책자 ──
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number>(years[0] ?? currentYear);
 
   const participants = useMemo(
     () => allParticipants.filter(p => p.year === selectedYear),
@@ -118,13 +128,12 @@ export default function CompanyEditPage() {
       }
 
       if (parsed.length > 0) {
-        updateInfo(companyId, parsed, file.name);
+        updateInfo(companyId, infoYear, parsed, file.name);
         setUploadToast({ name: file.name });
         setTimeout(() => setUploadToast(null), 3000);
       }
     } catch {
-      // 파싱 실패 시 파일명만 기록하고 현재 정보 유지 (학습 시뮬레이션)
-      updateInfo(companyId, leadershipCurrent, file.name);
+      updateInfo(companyId, infoYear, leadershipCurrent, file.name);
       setUploadToast({ name: file.name });
       setTimeout(() => setUploadToast(null), 3000);
     }
@@ -263,10 +272,10 @@ export default function CompanyEditPage() {
 
         {/* ── 2. 리더십 유형 정보 ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-gray-800">리더십 유형 정보</h2>
-              <p className="text-xs text-gray-400 mt-0.5">다면진단 기반 리더십 유형 정의 및 특징. 파일 업로드로 업데이트합니다.</p>
+              <p className="text-xs text-gray-400 mt-0.5">연도별 다면진단 유형 정의 및 특징</p>
             </div>
             <div className="flex items-center gap-2">
               {leadershipHistory.length > 0 && (
@@ -288,12 +297,27 @@ export default function CompanyEditPage() {
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                파일 업로드
+                {infoYear}년 업로드
               </button>
             </div>
           </div>
 
-          {/* 현재 리더십 유형 정보 */}
+          {/* 연도 탭 */}
+          <div className="flex items-center gap-1.5 mb-4">
+            {(years.length > 0 ? years : [currentYear]).map(y => (
+              <button
+                key={y}
+                onClick={() => { setInfoYear(y); setHistoryOpen(false); }}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  y === infoYear ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {y}년
+              </button>
+            ))}
+          </div>
+
+          {/* 리더십 유형 카드 */}
           <div className="grid grid-cols-2 gap-3">
             {leadershipCurrent.map(info => (
               <div key={info.type} className="rounded-xl border border-gray-100 p-4 bg-gray-50/50">
@@ -309,7 +333,7 @@ export default function CompanyEditPage() {
           {/* 히스토리 */}
           {historyOpen && leadershipHistory.length > 0 && (
             <div className="mt-4 border-t border-gray-100 pt-4">
-              <p className="text-xs font-semibold text-gray-400 mb-3">업로드 히스토리</p>
+              <p className="text-xs font-semibold text-gray-400 mb-3">{infoYear}년 업로드 히스토리</p>
               <div className="space-y-2">
                 {leadershipHistory.map(v => (
                   <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -323,7 +347,7 @@ export default function CompanyEditPage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => updateInfo(companyId, v.info, `[복원] ${v.fileName}`)}
+                      onClick={() => updateInfo(companyId, infoYear, v.info, `[복원] ${v.fileName}`)}
                       className="text-xs font-medium text-[#55A4DA] hover:underline"
                     >
                       이 버전으로 복원
@@ -345,7 +369,7 @@ export default function CompanyEditPage() {
                 {years.map(y => (
                   <button
                     key={y}
-                    onClick={() => { setSelectedYear(y); setShowAddRow(false); cancelEdit(); }}
+                    onClick={() => { setSelectedYear(y); setShowAddRow(false); cancelEdit(); setHistoryOpen(false); }}
                     className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                       y === selectedYear ? 'bg-[#55A4DA] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}

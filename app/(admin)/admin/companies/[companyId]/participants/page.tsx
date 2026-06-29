@@ -17,12 +17,19 @@ const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: str
 };
 
 const leadershipColor: Record<LeadershipType, string> = {
-  '독재형':   'bg-red-100 text-red-600',
-  '방관형':   'bg-orange-100 text-orange-600',
-  '성과압박형':'bg-purple-100 text-purple-600',
-  '불통형':   'bg-pink-100 text-pink-600',
-  '불명확형': 'bg-indigo-100 text-indigo-600',
-  '감정기복형':'bg-amber-100 text-amber-600',
+  '독재형':    'bg-red-100 text-red-600',
+  '방관형':    'bg-orange-100 text-orange-600',
+  '성과압박형': 'bg-purple-100 text-purple-600',
+  '불통형':    'bg-pink-100 text-pink-600',
+  '불명확형':  'bg-indigo-100 text-indigo-600',
+  '감정기복형': 'bg-amber-100 text-amber-600',
+  '완벽주의형': 'bg-violet-100 text-violet-600',
+  '우유부단형': 'bg-rose-100 text-rose-600',
+  '코칭형':    'bg-emerald-100 text-emerald-700',
+  '민주형':    'bg-teal-100 text-teal-700',
+  '서번트형':  'bg-cyan-100 text-cyan-700',
+  '비전형':    'bg-sky-100 text-sky-700',
+  '관계중심형': 'bg-blue-100 text-blue-700',
 };
 
 const VALID_LEADERSHIP: LeadershipType[] = ['독재형', '방관형', '성과압박형', '불통형', '불명확형', '감정기복형'];
@@ -73,6 +80,7 @@ export default function ParticipantsPage() {
   );
 
 const [search, setSearch] = useState('');
+  const [leadershipFilter, setLeadershipFilter] = useState<LeadershipType | ''>('');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ count: number; error?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,10 +123,11 @@ const [search, setSearch] = useState('');
 
   const filtered = participants
     .filter(p =>
-      p.name.includes(search) ||
+      (!leadershipFilter || p.leadershipType === leadershipFilter) &&
+      (p.name.includes(search) ||
       p.position.includes(search) ||
       p.leadershipType.includes(search) ||
-      p.email.includes(search)
+      p.email.includes(search))
     );
 
   if (!company) {
@@ -276,14 +285,15 @@ const [search, setSearch] = useState('');
               </div>
               {/* 리더십 유형 필터 */}
               <div className="relative">
-                <select className="appearance-none text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer hover:border-[#55A4DA]/60 focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/20 transition-all shadow-sm">
+                <select
+                  value={leadershipFilter}
+                  onChange={e => setLeadershipFilter(e.target.value as LeadershipType | '')}
+                  className="appearance-none text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 outline-none cursor-pointer hover:border-[#55A4DA]/60 focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/20 transition-all shadow-sm"
+                >
                   <option value="">리더십 유형</option>
-                  <option>독재형</option>
-                  <option>방관형</option>
-                  <option>성과압박형</option>
-                  <option>불통형</option>
-                  <option>불명확형</option>
-                  <option>감정기복형</option>
+                  {VALID_LEADERSHIP.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
                 <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />

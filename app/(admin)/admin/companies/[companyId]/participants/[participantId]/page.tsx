@@ -17,6 +17,7 @@ const leadershipColor: Record<LeadershipType, string> = {
   '독재형':    'bg-red-100 text-red-600',
   '방관형':    'bg-orange-100 text-orange-600',
   '불통형':    'bg-pink-100 text-pink-600',
+  '불명확형':  'bg-indigo-100 text-indigo-600',
   '성과압박형': 'bg-purple-100 text-purple-600',
   '감정기복형': 'bg-amber-100 text-amber-600',
   '완벽주의형': 'bg-violet-100 text-violet-600',
@@ -36,6 +37,7 @@ const leadershipDesc: Record<LeadershipType, { summary: string; coaching: string
   '감정기복형': { summary: '감정 조절 미숙으로 인한 불안정 리더십', coaching: '감정 인식과 자기조절 역량 강화, 스트레스 상황에서의 안정적인 리더십 발휘 훈련이 필요합니다.' },
   '완벽주의형': { summary: '과도한 완벽 기준으로 팀을 압박하는 리더십', coaching: '완벽이 아닌 적정 기준을 설정하고, 실패를 학습의 기회로 수용하는 심리적 유연성 훈련이 필요합니다.' },
   '우유부단형': { summary: '결정을 회피하고 방향 제시가 부족한 리더십', coaching: '의사결정 프레임워크를 습득하고, 불완전한 정보 속에서도 적시에 판단을 내리는 훈련이 필요합니다.' },
+  '불명확형':  { summary: '리더십 유형이 명확히 분류되지 않은 상태', coaching: '자기 리더십 스타일을 파악하고, 강점과 약점을 구체적으로 인식하는 성찰 훈련이 필요합니다.' },
 };
 
 const deliveryBadge: Record<DeliveryStatus, { bg: string; text: string; dot: string }> = {
