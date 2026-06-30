@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
+import { useCompanyStore } from '@/store/companyStore';
 
 const navItems = [
   {
@@ -57,6 +59,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const { data: session } = useSession();
   const initial = session?.user?.name?.[0]?.toUpperCase() ?? 'A';
+
+  // 관리자 진입 시 기업 목록을 DB에서 1회 로드 (전 페이지 공유)
+  const loadCompanies = useCompanyStore(s => s.loadCompanies);
+  useEffect(() => { void loadCompanies(); }, [loadCompanies]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">

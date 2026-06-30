@@ -17,46 +17,70 @@ export interface Company {
   color: string;
 }
 
-const COLORS = [
-  'bg-[#55A4DA]', 'bg-[#4A90C4]', 'bg-[#5B9BD5]', 'bg-[#3A7BBF]',
-  'bg-[#6AAED6]', 'bg-[#4B8FBF]', 'bg-[#7DB3D0]', 'bg-[#5CA0C8]',
-];
-
-const INITIAL: Company[] = [];
+type CompanyInput = Omit<Company, 'id' | 'initials' | 'color'>;
 
 interface CompanyStore {
   companies: Company[];
-  addCompany: (data: Omit<Company, 'id' | 'initials' | 'color'>) => void;
-  updateCompany: (id: number, data: Partial<Omit<Company, 'id' | 'initials' | 'color'>>) => void;
-}
-
-function getInitials(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return '??';
-  const words = trimmed.split(/\s+/);
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-  return trimmed.slice(0, 2).toUpperCase();
+  loaded: boolean;
+  loading: boolean;
+  loadCompanies: (force?: boolean) => Promise<void>;
+  addCompany: (data: CompanyInput) => Promise<Company | null>;
+  updateCompany: (id: number, data: Partial<CompanyInput>) => Promise<void>;
 }
 
 export const useCompanyStore = create<CompanyStore>((set, get) => ({
-  companies: INITIAL,
-  updateCompany: (id, data) => {
-    set({
-      companies: get().companies.map(c =>
-        c.id === id ? { ...c, ...data, initials: data.name ? getInitials(data.name) : c.initials } : c
-      ),
-    });
+  companies: [],
+  loaded: false,
+  loading: false,
+
+  // DB에서 목록 로드 (이미 로드됐으면 force일 때만 재요청)
+  loadCompanies: async (force = false) => {
+    if (get().loading) return;
+    if (get().loaded && !force) return;
+    set({ loading: true });
+    try {
+      const res = await fetch('/api/admin/companies');
+      if (!res.ok) throw new Error('목록 로드 실패');
+      const companies = (await res.json()) as Company[];
+      set({ companies, loaded: true });
+    } catch (e) {
+      console.error('기업 목록 로드 오류:', e);
+    } finally {
+      set({ loading: false });
+    }
   },
-  addCompany: (data) => {
-    const companies = get().companies;
-    const id = companies.length > 0 ? Math.max(...companies.map(c => c.id)) + 1 : 1;
-    const color = COLORS[id % COLORS.length];
-    const newCompany: Company = {
-      ...data,
-      id,
-      initials: getInitials(data.name),
-      color,
-    };
-    set({ companies: [newCompany, ...companies] });
+
+  // 생성 → DB 저장 후 목록 앞에 추가, 생성된 기업 반환(실패 시 null)
+  addCompany: async (data) => {
+    try {
+      const res = await fetch('/api/admin/companies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('생성 실패');
+      const created = (await res.json()) as Company;
+      set({ companies: [created, ...get().companies] });
+      return created;
+    } catch (e) {
+      console.error('기업 생성 오류:', e);
+      return null;
+    }
+  },
+
+  // 수정 → DB 반영 후 목록 갱신
+  updateCompany: async (id, data) => {
+    try {
+      const res = await fetch(`/api/admin/companies/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error('수정 실패');
+      const updated = (await res.json()) as Company;
+      set({ companies: get().companies.map(c => (c.id === id ? updated : c)) });
+    } catch (e) {
+      console.error('기업 수정 오류:', e);
+    }
   },
 }));

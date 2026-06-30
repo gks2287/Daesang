@@ -101,8 +101,8 @@ export default function CompanyEditPage() {
   }
 
   // ── 핸들러: 기업 정보 ──
-  function saveCompany() {
-    updateCompany(companyId, companyForm);
+  async function saveCompany() {
+    await updateCompany(companyId, companyForm);
     router.push(`/admin/companies/${companyId}/participants`);
   }
 
