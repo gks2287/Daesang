@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCompanyStore, CoachingStatus } from '@/store/companyStore';
@@ -44,7 +44,6 @@ function getInitials(name: string) {
 
 export default function NewCompanyPage() {
   const router = useRouter();
-  const companies = useCompanyStore(s => s.companies);
   const addCompany = useCompanyStore(s => s.addCompany);
   const addParticipants = useParticipantStore(s => s.addParticipants);
 
@@ -74,16 +73,10 @@ export default function NewCompanyPage() {
 
   const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
-  const newCompanyId = useMemo(
-    () => companies.length > 0 ? Math.max(...companies.map(c => c.id)) + 1 : 1,
-    [companies],
-  );
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 400));
-    addCompany({
+    const created = await addCompany({
       name: form.name,
       industry: form.industry,
       participantCount: Number(form.participantCount),
@@ -94,10 +87,15 @@ export default function NewCompanyPage() {
       endDate: form.endDate,
       note: form.note,
     });
+    if (!created) {
+      setSubmitting(false);
+      alert('기업 생성에 실패했습니다. 다시 시도해주세요.');
+      return;
+    }
     if (draftParticipants.length > 0) {
       addParticipants(draftParticipants.map(p => ({
         ...p,
-        companyId: newCompanyId,
+        companyId: created.id,
         year: currentYear,
         assessmentRound: 1,
         deliveryStatus: '미발송' as const,
