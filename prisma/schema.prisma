@@ -1,0 +1,122 @@
+// J&컴퍼니 리더십 코칭 뉴스레터 — Prisma 스키마
+// 1단계: 핵심 도메인(기업·직책자·뉴스레터·진단이력·유형정의·관리자)
+// 한글 값(leadershipType/status 등)은 Prisma enum 식별자 제약·유연성 때문에 String 유지.
+// AI 생성 본문(generatedContent)·집계 객체는 Json 컬럼으로 저장.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // Supabase pooled (pgbouncer, 6543) — 런타임용
+  directUrl = env("DIRECT_URL")   // Supabase direct (5432) — 마이그레이션용
+}
+
+model Company {
+  id               Int           @id @default(autoincrement())
+  name             String
+  initials         String        @default("")
+  industry         String        @default("")
+  participantCount Int           @default(0)
+  status           String        @default("진행 전")
+  hrName           String        @default("")
+  hrEmail          String        @default("")
+  startDate        String        @default("")
+  endDate          String        @default("")
+  note             String        @default("")
+  color            String        @default("")
+  participants     Participant[]
+  newsletters      Newsletter[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("companies")
+}
+
+model Participant {
+  id               Int                     @id @default(autoincrement())
+  company          Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId        Int
+  year             Int
+  name             String
+  department       String                  @default("")
+  position         String                  @default("")
+  email            String
+  leadershipType   String
+  assessmentRound  Int                     @default(1)
+  deliveryStatus   String                  @default("미발송")
+  lastOpenedAt     String?
+  stepCurrent      Int                     @default(0)
+  stepTotal        Int                     @default(5)
+  token            String?                 @unique
+  diagnosisHistory DiagnosisHistoryEntry[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([companyId])
+  @@map("participants")
+}
+
+model Newsletter {
+  id               Int      @id @default(autoincrement())
+  title            String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId        Int
+  companyName      String
+  leadershipType   String
+  status           String   @default("제작 중")
+  stepCount        Int      @default(0)
+  positiveLeaders  Json     @default("{}") // { types: string[]; count: number }
+  negativeLeaders  Json     @default("{}") // { types: string[]; count: number }
+  totalRounds      Int      @default(0)
+  completedRounds  Int      @default(0)
+  type             String   @default("general") // 'general' | 'custom'
+  leaderType       String   @default("positive") // 'positive' | 'negative'
+  totalLeaders     Int      @default(0)
+  savedRounds      Int[]    @default([])
+  generatedContent Json? // SavedNewsletterContent (rounds/sections/interactions/surveys)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("newsletters")
+}
+
+model DiagnosisHistoryEntry {
+  id             Int         @id @default(autoincrement())
+  participant    Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId  Int
+  leadershipType String
+  changedAt      String
+  year           Int
+  createdAt      DateTime    @default(now())
+
+  @@index([participantId])
+  @@map("diagnosis_history")
+}
+
+model LeadershipInfoVersion {
+  id         Int      @id @default(autoincrement())
+  companyId  Int
+  year       Int
+  fileName   String
+  uploadedAt String
+  info       Json     @default("[]") // LeadershipInfo[]
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, year])
+  @@map("leadership_info_versions")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  role         String   @default("manager") // 'super_admin' | 'manager' | 'hr'
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("admin_users")
+}
