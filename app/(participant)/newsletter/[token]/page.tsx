@@ -1,9 +1,9 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type Participant } from '@/store/participantStore';
-import { useNewsletterStore } from '@/store/newsletterStore';
+import { type Newsletter } from '@/store/newsletterStore';
 import { renderGeneratedFullBody } from '@/components/newsletter/NewsletterRender';
 import { DEFAULT_STORYLINE, STEP_COLORS } from '@/lib/storyline';
 
@@ -81,10 +81,10 @@ type Tab = 'newsletter' | 'mypage';
 
 export default function ParticipantNewsletterPage() {
   const { token } = useParams<{ token: string }>();
-  const newsletters = useNewsletterStore(s => s.newsletters);
 
-  // 공개 토큰으로 본인 정보 + 동료 비교 평균만 조회 (undefined=로딩, null=없음)
+  // 공개 토큰으로 본인 정보 + 매칭 뉴스레터 + 동료 비교 평균만 조회 (undefined=로딩, null=없음)
   const [participant, setParticipant] = useState<Participant | null | undefined>(undefined);
+  const [newsletter, setNewsletter] = useState<Newsletter | null>(null);
   const [peers, setPeers] = useState<{ positionParticipationAvg: number | null; typeParticipationAvg: number | null; positionGroupCount: number; typeGroupCount: number }>({
     positionParticipationAvg: null,
     typeParticipationAvg: null,
@@ -98,8 +98,9 @@ export default function ParticipantNewsletterPage() {
         const res = await fetch(`/api/newsletter/by-token/${token}`);
         if (!alive) return;
         if (!res.ok) { setParticipant(null); return; }
-        const data = (await res.json()) as { participant: Participant; peers: { positionParticipationAvg: number | null; typeParticipationAvg: number | null; positionGroupCount: number; typeGroupCount: number } };
+        const data = (await res.json()) as { participant: Participant; newsletter: Newsletter | null; peers: { positionParticipationAvg: number | null; typeParticipationAvg: number | null; positionGroupCount: number; typeGroupCount: number } };
         setParticipant(data.participant);
+        setNewsletter(data.newsletter);
         setPeers(data.peers);
       } catch {
         if (alive) setParticipant(null);
@@ -107,13 +108,6 @@ export default function ParticipantNewsletterPage() {
     })();
     return () => { alive = false; };
   }, [token]);
-
-  const newsletter = useMemo(() => {
-    if (!participant) return null;
-    return newsletters.find(
-      n => n.companyId === participant.companyId && n.leadershipType === participant.leadershipType,
-    ) ?? null;
-  }, [newsletters, participant]);
 
   const rounds = newsletter?.generatedContent?.rounds ?? [];
   const accessible = participant?.stepCurrent ?? 0;
