@@ -36,8 +36,18 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     const positionGroup = peerRows.filter(p => p.position === participant!.position);
     const typeGroup = peerRows.filter(p => p.leadershipType === participant!.leadershipType);
 
+    // 본인 회사·유형에 매칭되는 뉴스레터 본문 (가장 최근 것)
+    const nl = await prisma.newsletter.findFirst({
+      where: { companyId: participant.companyId, leadershipType: participant.leadershipType },
+      orderBy: { createdAt: 'desc' },
+    });
+    const newsletter = nl
+      ? { ...nl, createdAt: nl.createdAt.toISOString().slice(0, 10), updatedAt: nl.updatedAt.toISOString().slice(0, 10) }
+      : null;
+
     return NextResponse.json({
       participant,
+      newsletter,
       peers: {
         positionParticipationAvg: avg(positionGroup),
         typeParticipationAvg: avg(typeGroup),

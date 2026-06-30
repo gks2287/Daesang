@@ -1039,7 +1039,7 @@ function ConfigureContent() {
     return savedRounds.length > 0 ? { rounds: savedRounds } : undefined;
   }
 
-  function handleSave(status: '제작 중' | '제작완료', savedContent?: SavedNewsletterContent) {
+  async function handleSave(status: '제작 중' | '제작완료', savedContent?: SavedNewsletterContent) {
     const company = targetCompanies[0];
     const leadershipType = leadershipTypes.length > 0
       ? leadershipTypes[0]
@@ -1048,7 +1048,7 @@ function ConfigureContent() {
     const isNegative = NEGATIVE_TYPES.includes(leadershipType as typeof NEGATIVE_TYPES[number]);
     const posTypes = [...new Set(positiveParticipants.map(p => p.leadershipType))];
     const negTypes = [...new Set(negativeParticipants.map(p => p.leadershipType))];
-    addNewsletter({
+    await addNewsletter({
       title: autoTitle,
       companyId: company?.id ?? 0,
       companyName: company?.name ?? '미지정',
@@ -1075,7 +1075,7 @@ function ConfigureContent() {
     setTimeout(() => setShowDraftToast(false), 1500);
   }
 
-  function handleDraftSave() {
+  async function handleDraftSave() {
     // savedByUser 플래그 저장 → 복구 팝업 억제용
     localStorage.setItem('newsletter_draft_saved', JSON.stringify({ savedByUser: true }));
     // 뉴스레터 목록에 추가
@@ -1086,7 +1086,7 @@ function ConfigureContent() {
     const isNegative = NEGATIVE_TYPES.includes(leadershipType as typeof NEGATIVE_TYPES[number]);
     const posTypes = [...new Set(positiveParticipants.map(p => p.leadershipType))];
     const negTypes = [...new Set(negativeParticipants.map(p => p.leadershipType))];
-    addNewsletter({
+    await addNewsletter({
       title: `${company?.name ?? '미지정'} ${leadershipType} 리더십 코칭`.trim(),
       companyId: company?.id ?? 0,
       companyName: company?.name ?? '미지정',

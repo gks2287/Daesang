@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useCompanyStore } from '@/store/companyStore';
 import { useParticipantStore } from '@/store/participantStore';
+import { useNewsletterStore } from '@/store/newsletterStore';
 
 const navItems = [
   {
@@ -61,13 +62,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data: session } = useSession();
   const initial = session?.user?.name?.[0]?.toUpperCase() ?? 'A';
 
-  // 관리자 진입 시 기업·직책자 목록을 DB에서 1회 로드 (전 페이지 공유)
+  // 관리자 진입 시 기업·직책자·뉴스레터 목록을 DB에서 1회 로드 (전 페이지 공유)
   const loadCompanies = useCompanyStore(s => s.loadCompanies);
   const loadParticipants = useParticipantStore(s => s.loadParticipants);
+  const loadNewsletters = useNewsletterStore(s => s.loadNewsletters);
   useEffect(() => {
     void loadCompanies();
     void loadParticipants();
-  }, [loadCompanies, loadParticipants]);
+    void loadNewsletters();
+  }, [loadCompanies, loadParticipants, loadNewsletters]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
