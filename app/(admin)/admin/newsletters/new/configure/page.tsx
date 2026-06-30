@@ -588,7 +588,8 @@ function ConfigureContent() {
       const res = await fetch('/api/newsletter/refine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current, prompt: text }),
+        // 현재 보고 있는 모드 전달 — 요약본(email)이면 요약 필드를, 전체본문(full)이면 본문을 수정
+        body: JSON.stringify({ current, prompt: text, mode: livePreviewMode }),
       });
       if (!res.ok) throw new Error('수정 실패');
       const data = await res.json() as GeneratedNewsletter;
@@ -2173,7 +2174,7 @@ function ConfigureContent() {
                               value={promptInput}
                               onChange={e => setPromptInput(e.target.value)}
                               disabled={!canRefine || refining}
-                              placeholder={canRefine ? '프롬프트로 콘텐츠를 수정하세요 (예: 더 짧고 간결하게, 전문적인 톤으로)' : '미리보기를 먼저 표시하면 프롬프트로 수정할 수 있어요'}
+                              placeholder={canRefine ? (livePreviewMode === 'email' ? '요약본을 프롬프트로 수정하세요 (예: 요약을 한 줄로, 더 임팩트 있게)' : '본문을 프롬프트로 수정하세요 (예: 더 짧고 간결하게, 전문적인 톤으로)') : '미리보기를 먼저 표시하면 프롬프트로 수정할 수 있어요'}
                               className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:border-[#55A4DA] focus:ring-1 focus:ring-[#55A4DA]/30 transition-colors disabled:bg-gray-50 disabled:text-gray-400 disabled:placeholder-gray-400"
                             />
                           </div>
